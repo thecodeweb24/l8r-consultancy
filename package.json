@@ -1,0 +1,29 @@
+{
+  "name": "l8r-consultancy",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "node --env-file-if-exists=.env --env-file-if-exists=.env.local server.js",
+    "build": "vite build",
+    "start": "node --env-file-if-exists=.env --env-file-if-exists=.env.local server.js",
+    "admin:create": "node --env-file-if-exists=.env --env-file-if-exists=.env.local scripts/create-admin.js",
+    "db:backup": "node --env-file-if-exists=.env --env-file-if-exists=.env.local scripts/backup.js",
+    "test": "node --test"
+  },
+  "engines": {
+    "node": "24.x"
+  },
+  "dependencies": {
+    "@vitejs/plugin-react": "latest",
+    "express": "^5.3.0",
+    "helmet": "^8.3.0",
+    "lucide-react": "latest",
+    "multer": "^2.5.0",
+    "nodemailer": "^10.6.1",
+    "pg": "^8.16.3",
+    "react": "latest",
+    "react-dom": "latest",
+    "vite": "latest"
+  }
+}
