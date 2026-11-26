@@ -57,6 +57,8 @@ The project includes `vercel.json` and a Node.js serverless entry point. All req
 
 Vercel's serverless request payload limit is lower than the local upload limit, so project images are limited to 512 KB each on Vercel (up to one cover plus five gallery images per request). Locally, uploads remain on disk and support files up to 8 MB each. Database backups include image bytes stored by Vercel; do not rely on the function's `/tmp` directory for persistent files.
 
+If Vercel returns `FUNCTION_INVOCATION_FAILED` for `/api/health` or `/sitemap.xml`, check that `DATABASE_URL` is set for the deployed Vercel environment and that both SQL migrations have run, then redeploy. `public/robots.txt` is deliberately static so crawler access to robots rules does not depend on the database function; update its sitemap URL if the production domain changes.
+
 ## Email notifications
 
 Set `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, `MAIL_FROM`, and `ADMIN_NOTIFICATION_EMAIL` in `.env.local` or `.env` to enable server-side notifications for public enquiries. Enquiries are stored even when SMTP is not configured; notification delivery is not claimed in that case.

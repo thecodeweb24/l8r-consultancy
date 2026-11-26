@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+Disallow: /api/
+Sitemap: https://l8rconsultancy.vercel.app/sitemap.xml
