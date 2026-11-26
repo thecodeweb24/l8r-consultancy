@@ -6,7 +6,10 @@ import {
   Users, X
 } from 'lucide-react';
 import { gsap } from 'gsap';
+import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import { api } from './api.js';
+
+gsap.registerPlugin(ScrollTrigger);
 
 const approach = [
   { number: '01', title: 'PLAN', text: 'Understand requirements and identify opportunities.' },
@@ -222,13 +225,6 @@ function Carousel({ items, type = 'services' }) {
     </div>
   );
 }
-
-const orbitServices = [
-  { title: 'Business Consulting', icon: BriefcaseBusiness },
-  { title: 'Web & App Development', icon: LayoutDashboard },
-  { title: 'Digital Marketing', icon: TrendingUp },
-  { title: 'Brand Solutions', icon: Sparkles }
-];
 
 function ThreeHeroScene({ reducedMotion }) {
   const mountRef = useRef(null);
@@ -483,7 +479,6 @@ function CinematicHero({ onConsult }) {
   const logoRef = useRef(null);
   const heroRef = useRef(null);
   const copyRef = useRef(null);
-  const orbitRef = useRef(null);
   const [reducedMotion] = useState(() => window.matchMedia('(prefers-reduced-motion: reduce)').matches);
 
   useEffect(() => {
@@ -492,49 +487,34 @@ function CinematicHero({ onConsult }) {
     const logo = logoRef.current;
     const hero = heroRef.current;
     const copy = copyRef.current;
-    const orbit = orbitRef.current;
-    if (!section || !intro || !logo || !hero || !copy || !orbit) return undefined;
+    if (!section || !intro || !logo || !hero || !copy) return undefined;
+    if (reducedMotion) return undefined;
 
     const context = gsap.context(() => {
-      if (reducedMotion) {
-        gsap.set(intro, { autoAlpha: 0 });
-        gsap.set(hero, { autoAlpha: 1, clearProps: 'clipPath' });
-        gsap.set([copy, orbit], { autoAlpha: 1 });
-        return;
-      }
-
       gsap.set(hero, { autoAlpha: 0, clipPath: 'circle(0% at 68% 50%)' });
-      gsap.set([copy, orbit], { autoAlpha: 0 });
-      const orbitCards = orbit.querySelectorAll('.hero-service-card');
-      const keepCardsFacingViewer = () => {
-        gsap.set(orbitCards, { rotationY: -gsap.getProperty(orbit, 'rotationY') });
-      };
-      gsap.set(orbitCards, { rotationY: 35 });
-      gsap.timeline({ delay: 0.25 })
+      gsap.set(copy, { autoAlpha: 0 });
+      gsap.timeline({
+        scrollTrigger: {
+          trigger: section,
+          start: 'top top',
+          end: '+=120%',
+          pin: true,
+          scrub: 0.8,
+          anticipatePin: 1,
+          invalidateOnRefresh: true
+        }
+      })
         .to(logo, {
           scale: () => Math.max(
             window.innerWidth / (logo.offsetWidth || 300),
             window.innerHeight / (logo.offsetHeight || 200)
           ) * 3,
-          duration: 1.35,
-          ease: 'power2.in'
+          duration: 1.1,
+          ease: 'none'
         })
-        .to(intro, { autoAlpha: 0, duration: 0.35 }, '-=0.35')
-        .to(hero, { autoAlpha: 1, clipPath: 'circle(150% at 68% 50%)', duration: 0.9, ease: 'power2.out' }, '-=0.25')
-        .fromTo(copy, { y: 26, autoAlpha: 0 }, { y: 0, autoAlpha: 1, duration: 0.65, ease: 'power3.out' }, '-=0.4')
-        .fromTo(
-          orbit,
-          { y: 22, rotationY: -35, autoAlpha: 0 },
-          { y: 0, rotationY: 0, autoAlpha: 1, duration: 0.7, ease: 'power2.out', onUpdate: keepCardsFacingViewer },
-          '-=0.55'
-        )
-        .to(orbit, {
-          rotationY: 360,
-          duration: 22,
-          repeat: -1,
-          ease: 'none',
-          onUpdate: keepCardsFacingViewer
-        });
+        .to(intro, { autoAlpha: 0, duration: 0.2, ease: 'none' })
+        .to(hero, { autoAlpha: 1, clipPath: 'circle(150% at 68% 50%)', duration: 0.9, ease: 'none' }, '-=0.1')
+        .fromTo(copy, { y: 26, autoAlpha: 0 }, { y: 0, autoAlpha: 1, duration: 0.5, ease: 'none' }, '-=0.25');
     }, section);
 
     return () => context.revert();
@@ -543,8 +523,8 @@ function CinematicHero({ onConsult }) {
   return (
     <section className={`cinematic-hero ${reducedMotion ? 'reduced-motion' : ''}`} id="top" ref={sectionRef}>
       <div className="cinematic-logo-intro" ref={introRef}>
-        <img ref={logoRef} src="/logo.png" alt="L8R Consultancy" />
-        <p>STRATEGY · BUILD · GROW</p>
+        <img ref={logoRef} src="/metallic-logo.png" alt="L8R Consultancy" />
+        <p>SCROLL TO REVEAL</p>
       </div>
       <div className="cinematic-environment" ref={heroRef}>
         <div className="cinematic-atmosphere" aria-hidden="true" />
@@ -557,16 +537,6 @@ function CinematicHero({ onConsult }) {
             <a className="button button-light" href="#services">EXPLORE SERVICES <ArrowRight size={16} /></a>
             <a className="text-button" href="#work">VIEW PROJECTS <span><ArrowUpRight size={16} /></span></a>
           </div>
-        </div>
-        <div className="hero-service-orbit" ref={orbitRef} aria-label="L8R Consultancy services">
-          {orbitServices.map(({ title, icon: Icon }, index) => (
-            <a className={`hero-service-card hero-service-card-${index + 1}`} href="#services" key={title}>
-              <span className="hero-service-icon"><Icon size={19} strokeWidth={1.6} /></span>
-              <span className="hero-service-number">0{index + 1}</span>
-              <strong>{title}</strong>
-              <span className="hero-service-arrow"><ArrowUpRight size={15} /></span>
-            </a>
-          ))}
         </div>
         <p className="hero-trust">TRUSTED BY FORWARD-THINKING BUSINESSES</p>
         <div className="cinematic-index"><span className="scroll-mark">↓</span><small>SCROLL TO EXPLORE</small><span className="index-line" /><small>01 / 04</small></div>
