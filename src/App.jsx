@@ -6,10 +6,7 @@ import {
   Users, X
 } from 'lucide-react';
 import { gsap } from 'gsap';
-import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import { api } from './api.js';
-
-gsap.registerPlugin(ScrollTrigger);
 
 const approach = [
   { number: '01', title: 'PLAN', text: 'Understand requirements and identify opportunities.' },
@@ -226,299 +223,318 @@ function Carousel({ items, type = 'services' }) {
   );
 }
 
-function initializeThreeHeroScene(host, THREE, RoomEnvironment, Reflector) {
-    let renderer;
-    try {
-      renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true, powerPreference: 'high-performance' });
-    } catch (error) {
-      console.error('The 3D hero could not initialize WebGL:', error);
-      host.classList.add('webgl-unavailable');
-      return undefined;
-    }
+const orbitServices = [
+  { title: 'Business Consulting', icon: BriefcaseBusiness },
+  { title: 'Web & App Development', icon: LayoutDashboard },
+  { title: 'Digital Marketing', icon: TrendingUp },
+  { title: 'Brand Solutions', icon: Sparkles }
+];
 
-    const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(36, 1, 0.1, 100);
-    camera.position.set(0, 0.15, 11);
-    camera.lookAt(0, -0.5, 0);
-    const pixelRatio = Math.min(window.devicePixelRatio || 1, 1.6);
-    renderer.setPixelRatio(pixelRatio);
-    renderer.setSize(host.clientWidth, host.clientHeight);
-    renderer.setClearColor(0x000000, 0);
-    renderer.outputColorSpace = THREE.SRGBColorSpace;
-    renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 0.9;
-    renderer.domElement.setAttribute('aria-hidden', 'true');
-    host.appendChild(renderer.domElement);
-
-    const pmrem = new THREE.PMREMGenerator(renderer);
-    const room = new RoomEnvironment();
-    const environment = pmrem.fromScene(room, 0.04);
-    room.dispose();
-    scene.environment = environment.texture;
-    pmrem.dispose();
-    scene.add(new THREE.AmbientLight(0xffffff, 0.35));
-
-    const keyLight = new THREE.SpotLight(0xffffff, 48, 28, Math.PI / 5, 0.5, 1.5);
-    keyLight.position.set(-4, 6, 8);
-    scene.add(keyLight);
-    scene.add(keyLight.target);
-    const rimLight = new THREE.PointLight(0xe4e8ec, 12, 20);
-    rimLight.position.set(5, 1, -3);
-    scene.add(rimLight);
-    const fillLight = new THREE.PointLight(0xffffff, 6, 18);
-    fillLight.position.set(-5, -2, 4);
-    scene.add(fillLight);
-
-    const installation = new THREE.Group();
-    scene.add(installation);
-    const silver = new THREE.MeshStandardMaterial({ color: 0xb2b7bc, metalness: 0.94, roughness: 0.19, envMapIntensity: 1.35 });
-    const darkMetal = new THREE.MeshStandardMaterial({ color: 0x070809, metalness: 0.86, roughness: 0.22, envMapIntensity: 1.3 });
-
-    const labelCanvas = document.createElement('canvas');
-    labelCanvas.width = 1024;
-    labelCanvas.height = 512;
-    const labelContext = labelCanvas.getContext('2d');
-    if (labelContext) {
-      labelContext.fillStyle = '#070809';
-      labelContext.fillRect(0, 0, 1024, 512);
-      labelContext.fillStyle = '#f5f6f7';
-      labelContext.textAlign = 'center';
-      labelContext.font = '600 180px Manrope, Arial, sans-serif';
-      labelContext.fillText('L8R', 512, 270);
-      labelContext.font = '500 37px Arial, sans-serif';
-      labelContext.letterSpacing = '12px';
-      labelContext.fillText('C O N S U L T A N C Y', 512, 340);
-      labelContext.strokeStyle = '#8d9297';
-      labelContext.lineWidth = 2;
-      labelContext.beginPath();
-      labelContext.moveTo(260, 380);
-      labelContext.lineTo(764, 380);
-      labelContext.stroke();
-    }
-    const labelTexture = new THREE.CanvasTexture(labelCanvas);
-    labelTexture.colorSpace = THREE.SRGBColorSpace;
-    const box = new THREE.Mesh(
-      new THREE.BoxGeometry(3.35, 1.95, 0.22),
-      [silver, silver, silver, silver, new THREE.MeshStandardMaterial({ color: 0xffffff, map: labelTexture, metalness: 0.48, roughness: 0.26 }), darkMetal]
-    );
-    box.rotation.set(-0.08, -0.22, -0.08);
-    installation.add(box);
-    let sceneDisposed = false;
-    const officialLogo = new Image();
-    officialLogo.onload = () => {
-      if (sceneDisposed || !labelContext) return;
-      labelContext.fillStyle = '#070809';
-      labelContext.fillRect(0, 0, labelCanvas.width, labelCanvas.height);
-      const scale = Math.min(780 / officialLogo.width, 390 / officialLogo.height);
-      const width = officialLogo.width * scale;
-      const height = officialLogo.height * scale;
-      labelContext.filter = 'grayscale(1) invert(1)';
-      labelContext.drawImage(officialLogo, (labelCanvas.width - width) / 2, (labelCanvas.height - height) / 2, width, height);
-      labelContext.filter = 'none';
-      labelTexture.needsUpdate = true;
-    };
-    officialLogo.src = '/logo.png';
-
-    [
-      { rotation: [1.18, 0.12, -0.18], scale: [1.38, 0.72, 1] },
-      { rotation: [0.38, 1.08, 0.62], scale: [1.28, 0.74, 1] },
-      { rotation: [1.52, -0.16, 0.55], scale: [1.48, 0.72, 1] }
-    ].forEach(({ rotation, scale }) => {
-      const orbit = new THREE.Mesh(new THREE.TorusGeometry(3.05, 0.025, 12, 220), silver);
-      orbit.rotation.set(...rotation);
-      orbit.scale.set(...scale);
-      installation.add(orbit);
-    });
-
-    const platform = new THREE.Group();
-    platform.position.y = -2.25;
-    scene.add(platform);
-    const base = new THREE.Mesh(new THREE.CylinderGeometry(2.35, 2.58, 0.16, 96), darkMetal);
-    platform.add(base);
-    const lip = new THREE.Mesh(new THREE.TorusGeometry(2.43, 0.055, 12, 96), silver);
-    lip.rotation.x = Math.PI / 2;
-    lip.position.y = 0.1;
-    platform.add(lip);
-
-    const floor = new Reflector(new THREE.PlaneGeometry(18, 14), {
-      clipBias: 0.003,
-      color: 0x57595c,
-      textureWidth: 512,
-      textureHeight: 512
-    });
-    floor.material.fragmentShader = floor.material.fragmentShader.replace(
-      'gl_FragColor = vec4( blendOverlay( base.rgb, color ), 1.0 );',
-      'gl_FragColor = vec4( blendOverlay( base.rgb, color ), base.a );'
-    );
-    floor.material.transparent = true;
-    floor.material.depthWrite = false;
-    floor.rotation.x = -Math.PI / 2;
-    floor.position.set(0, -2.35, -1.5);
-    scene.add(floor);
-    const decorations = new THREE.Group();
-    scene.add(decorations);
-    [
-      { geometry: new THREE.SphereGeometry(0.13, 24, 24), position: [3.65, 1.45, 0.3] },
-      { geometry: new THREE.SphereGeometry(0.09, 20, 20), position: [-3.6, -1.7, 0.6] },
-      { geometry: new THREE.BoxGeometry(0.34, 0.34, 0.34), position: [-2.7, 1.8, -0.5] },
-      { geometry: new THREE.BoxGeometry(0.32, 0.32, 0.32), position: [2.85, -1.75, -0.2] }
-    ].forEach(({ geometry, position }) => {
-      const object = new THREE.Mesh(geometry, silver);
-      object.position.set(...position);
-      object.userData.initialY = position[1];
-      object.rotation.set(0.35, 0.55, 0.2);
-      decorations.add(object);
-    });
-
-    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    const pointer = { x: 0, y: 0 };
-    const onPointerMove = (event) => {
-      const bounds = host.getBoundingClientRect();
-      pointer.x = ((event.clientX - bounds.left) / bounds.width - 0.5) * 2;
-      pointer.y = ((event.clientY - bounds.top) / bounds.height - 0.5) * 2;
-    };
-    window.addEventListener('pointermove', onPointerMove);
-    const resizeObserver = new ResizeObserver(() => {
-      const width = host.clientWidth;
-      const height = host.clientHeight;
-      if (!width || !height) return;
-      camera.aspect = width / height;
-      camera.updateProjectionMatrix();
-      renderer.setSize(width, height);
-    });
-    resizeObserver.observe(host);
-
-    let frameId;
-    let isVisible = true;
-    const startTime = performance.now();
-    const renderFrame = () => {
-      frameId = 0;
-      if (!isVisible) return;
-      const time = (performance.now() - startTime) / 1000;
-      if (!reducedMotion) {
-        installation.rotation.y += ((pointer.x * 0.08) - installation.rotation.y) * 0.025;
-        installation.rotation.x += ((-pointer.y * 0.045) - installation.rotation.x) * 0.025;
-        box.position.y = Math.sin(time * 0.65) * 0.08;
-        decorations.rotation.y = Math.sin(time * 0.18) * 0.1;
-        decorations.children.forEach((object, index) => {
-          object.rotation.y += 0.002 + index * 0.0004;
-          object.position.y = object.userData.initialY + Math.sin(time * 0.6 + index) * 0.08;
-        });
-      }
-      renderer.render(scene, camera);
-      frameId = window.requestAnimationFrame(renderFrame);
-    };
-    camera.aspect = host.clientWidth / host.clientHeight;
-    camera.updateProjectionMatrix();
-    const visibilityObserver = typeof IntersectionObserver === 'undefined' ? null : new IntersectionObserver(([entry]) => {
-      isVisible = entry.isIntersecting;
-      if (isVisible && !frameId) renderFrame();
-      if (!isVisible && frameId) {
-        window.cancelAnimationFrame(frameId);
-        frameId = 0;
-      }
-    });
-    if (visibilityObserver) {
-      visibilityObserver.observe(host);
-    } else {
-      renderFrame();
-    }
-
-    return () => {
-      sceneDisposed = true;
-      window.cancelAnimationFrame(frameId);
-      window.removeEventListener('pointermove', onPointerMove);
-      resizeObserver.disconnect();
-      if (visibilityObserver) visibilityObserver.disconnect();
-      scene.traverse((object) => {
-        if (object.geometry) object.geometry.dispose();
-        if (object.material) {
-          const materials = Array.isArray(object.material) ? object.material : [object.material];
-          materials.forEach((material) => material.dispose());
-        }
-      });
-      environment.dispose();
-      renderer.dispose();
-      renderer.domElement.remove();
-    };
-}
-
-function ThreeHeroScene() {
-  const hostRef = useRef(null);
+function ThreeHeroScene({ reducedMotion }) {
+  const mountRef = useRef(null);
 
   useEffect(() => {
-    const host = hostRef.current;
-    if (!host) return undefined;
-    let cancelled = false;
-    let cleanupScene;
-    Promise.all([
-      import('three'),
-      import('three/addons/environments/RoomEnvironment.js'),
-      import('three/addons/objects/Reflector.js')
-    ]).then(([THREE, { RoomEnvironment }, { Reflector }]) => {
-      if (cancelled) return;
-      cleanupScene = initializeThreeHeroScene(host, THREE, RoomEnvironment, Reflector);
-    }).catch((error) => {
-      if (cancelled) return;
-      console.error('The 3D hero could not load its rendering modules:', error);
-      host.classList.add('webgl-unavailable');
-    });
-    return () => {
-      cancelled = true;
-      if (cleanupScene) cleanupScene();
-    };
-  }, []);
+    const mount = mountRef.current;
+    if (!mount) return undefined;
 
-  return <div className="three-hero-scene" ref={hostRef} aria-hidden="true"><div className="scene-fallback-label">L8R<small>CONSULTANCY</small></div></div>;
+    let disposed = false;
+    let frameId = 0;
+    let renderer;
+    let scene;
+    let environmentTarget;
+    let resizeHandler;
+
+    async function initialize() {
+      const [THREE, { RoomEnvironment }, { Reflector }] = await Promise.all([
+        import('three'),
+        import('three/addons/environments/RoomEnvironment.js'),
+        import('three/addons/objects/Reflector.js')
+      ]);
+      if (disposed) return;
+
+      const width = Math.max(mount.clientWidth, 1);
+      const height = Math.max(mount.clientHeight, 1);
+      const pixelRatio = Math.min(window.devicePixelRatio || 1, 1.5);
+      scene = new THREE.Scene();
+      scene.fog = new THREE.Fog(0x050505, 11, 26);
+
+      const camera = new THREE.PerspectiveCamera(38, width / height, 0.1, 80);
+      const mobile = width < 760;
+      camera.position.set(0, mobile ? 1.1 : 0.15, mobile ? 12 : 11);
+      camera.lookAt(0, mobile ? 1.1 : 0, 0);
+
+      renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true, powerPreference: 'high-performance' });
+      renderer.setPixelRatio(pixelRatio);
+      renderer.setSize(width, height);
+      renderer.outputColorSpace = THREE.SRGBColorSpace;
+      renderer.toneMapping = THREE.ACESFilmicToneMapping;
+      renderer.toneMappingExposure = 1.15;
+      renderer.setClearColor(0x050505, 0);
+      mount.appendChild(renderer.domElement);
+
+      const room = new RoomEnvironment();
+      const pmrem = new THREE.PMREMGenerator(renderer);
+      environmentTarget = pmrem.fromScene(room, 0.04);
+      scene.environment = environmentTarget.texture;
+      pmrem.dispose();
+
+      scene.add(new THREE.AmbientLight(0xffffff, 0.7));
+      const keyLight = new THREE.SpotLight(0xffffff, 36, 24, Math.PI / 5, 0.72, 1.2);
+      keyLight.position.set(2, 7, 7);
+      scene.add(keyLight);
+      const rimLight = new THREE.PointLight(0xc9c9c9, 18, 14);
+      rimLight.position.set(-4, 1, 3);
+      scene.add(rimLight);
+      const edgeLight = new THREE.PointLight(0xffffff, 14, 12);
+      edgeLight.position.set(5, 2, -3);
+      scene.add(edgeLight);
+
+      const installation = new THREE.Group();
+      installation.position.set(mobile ? 0.15 : 2, mobile ? -0.75 : 0, 0);
+      scene.add(installation);
+
+      const panelMaterial = new THREE.MeshPhysicalMaterial({
+        color: 0x090909,
+        metalness: 0.95,
+        roughness: 0.2,
+        clearcoat: 1,
+        clearcoatRoughness: 0.12
+      });
+      const panel = new THREE.Mesh(new THREE.BoxGeometry(3.2, 1.65, 0.2), panelMaterial);
+      installation.add(panel);
+      const frame = new THREE.LineSegments(
+        new THREE.EdgesGeometry(panel.geometry),
+        new THREE.LineBasicMaterial({ color: 0xd4d4d4, transparent: true, opacity: 0.72 })
+      );
+      installation.add(frame);
+
+      const logoCanvas = document.createElement('canvas');
+      logoCanvas.width = 1024;
+      logoCanvas.height = 512;
+      const context = logoCanvas.getContext('2d');
+      if (context) {
+        context.clearRect(0, 0, logoCanvas.width, logoCanvas.height);
+        context.textAlign = 'center';
+        context.fillStyle = '#f4f4f4';
+        context.font = '600 230px Arial, sans-serif';
+        context.fillText('L8R', 512, 264);
+        context.fillStyle = '#b8b8b8';
+        context.font = '500 42px Arial, sans-serif';
+        context.letterSpacing = '18px';
+        context.fillText('CONSULTANCY', 512, 344);
+        context.fillStyle = '#858585';
+        context.fillRect(295, 377, 434, 2);
+        context.font = '400 20px Arial, sans-serif';
+        context.letterSpacing = '8px';
+        context.fillText('PLAN  •  ADVISE  •  GROW', 512, 416);
+      }
+      const logoTexture = new THREE.CanvasTexture(logoCanvas);
+      logoTexture.colorSpace = THREE.SRGBColorSpace;
+      const logoMaterial = new THREE.MeshBasicMaterial({ map: logoTexture, transparent: true });
+      const face = new THREE.Mesh(new THREE.PlaneGeometry(2.92, 1.46), logoMaterial);
+      face.position.z = 0.106;
+      installation.add(face);
+
+      const ringMaterial = new THREE.MeshPhysicalMaterial({
+        color: 0xc5c5c5,
+        metalness: 1,
+        roughness: 0.16,
+        clearcoat: 1
+      });
+      const rings = new THREE.Group();
+      rings.add(new THREE.Mesh(new THREE.TorusGeometry(2.4, 0.025, 12, 180), ringMaterial));
+      const ringTwo = new THREE.Mesh(new THREE.TorusGeometry(2.72, 0.018, 12, 180), ringMaterial);
+      ringTwo.rotation.set(0.82, 0.45, 0.2);
+      rings.add(ringTwo);
+      const ringThree = new THREE.Mesh(new THREE.TorusGeometry(2.1, 0.015, 12, 180), ringMaterial);
+      ringThree.rotation.set(1.16, -0.62, -0.35);
+      rings.add(ringThree);
+      installation.add(rings);
+
+      const platform = new THREE.Mesh(
+        new THREE.CylinderGeometry(1.8, 2, 0.14, 96),
+        new THREE.MeshPhysicalMaterial({ color: 0x070707, metalness: 0.75, roughness: 0.32, clearcoat: 0.6 })
+      );
+      platform.position.y = -1.85;
+      installation.add(platform);
+      const platformEdge = new THREE.Mesh(
+        new THREE.TorusGeometry(1.91, 0.025, 10, 96),
+        ringMaterial
+      );
+      platformEdge.rotation.x = Math.PI / 2;
+      platformEdge.position.y = -1.77;
+      installation.add(platformEdge);
+
+      const sphereMaterial = new THREE.MeshPhysicalMaterial({
+        color: 0x9b9b9b,
+        metalness: 1,
+        roughness: 0.12,
+        clearcoat: 1
+      });
+      const ornaments = new THREE.Group();
+      [
+        { x: -1.5, y: 1.35, z: 0.2, size: 0.28 },
+        { x: 2.1, y: 1.55, z: -0.6, size: 0.2 },
+        { x: -1.1, y: -1.2, z: 0.7, size: 0.16 },
+        { x: 2.25, y: -1.15, z: 0.4, size: 0.24 }
+      ].forEach(({ x, y, z, size }) => {
+        const sphere = new THREE.Mesh(new THREE.SphereGeometry(size, 32, 24), sphereMaterial);
+        sphere.position.set(x, y, z);
+        ornaments.add(sphere);
+      });
+      const cubeMaterial = new THREE.MeshPhysicalMaterial({
+        color: 0x292929,
+        metalness: 0.85,
+        roughness: 0.14,
+        transparent: true,
+        opacity: 0.68,
+        wireframe: true
+      });
+      const cube = new THREE.Mesh(new THREE.BoxGeometry(0.72, 0.72, 0.72), cubeMaterial);
+      cube.position.set(-1.6, -0.25, -0.8);
+      cube.rotation.set(0.55, 0.35, 0.4);
+      ornaments.add(cube);
+      const cubeTwo = cube.clone();
+      cubeTwo.position.set(2.35, 0.15, -1.1);
+      cubeTwo.scale.setScalar(0.62);
+      ornaments.add(cubeTwo);
+      ornaments.position.x = mobile ? 0 : 2;
+      ornaments.visible = !mobile;
+      scene.add(ornaments);
+
+      const floor = new THREE.Mesh(
+        new THREE.PlaneGeometry(160, 160),
+        new THREE.MeshStandardMaterial({ color: 0x080808, metalness: 0.8, roughness: 0.32 })
+      );
+      floor.rotation.x = -Math.PI / 2;
+      floor.position.y = -2.12;
+      scene.add(floor);
+      const mirror = new Reflector(new THREE.PlaneGeometry(32, 32), {
+        clipBias: 0.003,
+        textureWidth: Math.min(1024, Math.floor(width * pixelRatio)),
+        textureHeight: Math.min(1024, Math.floor(height * pixelRatio)),
+        color: 0x333333
+      });
+      mirror.rotation.x = -Math.PI / 2;
+      mirror.position.y = -2.1;
+      scene.add(mirror);
+
+      function resize() {
+        const nextWidth = Math.max(mount.clientWidth, 1);
+        const nextHeight = Math.max(mount.clientHeight, 1);
+        const mobile = nextWidth < 760;
+        camera.aspect = nextWidth / nextHeight;
+        camera.position.set(0, mobile ? 1.1 : 0.15, mobile ? 12 : 11);
+        camera.lookAt(0, mobile ? 1.1 : 0, 0);
+        installation.position.set(mobile ? 0.15 : 2, mobile ? -0.75 : 0, 0);
+        ornaments.position.x = mobile ? 0 : 2;
+        ornaments.visible = !mobile;
+        camera.updateProjectionMatrix();
+        renderer.setSize(nextWidth, nextHeight);
+      }
+      resizeHandler = resize;
+      window.addEventListener('resize', resizeHandler);
+
+      const render = () => {
+        const time = reducedMotion ? 0 : performance.now() * 0.001;
+        installation.rotation.y = Math.sin(time * 0.28) * 0.06;
+        installation.rotation.x = Math.sin(time * 0.22) * 0.025;
+        rings.rotation.y = time * 0.12;
+        rings.rotation.z = Math.sin(time * 0.16) * 0.08;
+        ornaments.rotation.y = Math.sin(time * 0.12) * 0.04;
+        renderer.render(scene, camera);
+        if (!reducedMotion) frameId = window.requestAnimationFrame(render);
+      };
+      render();
+    }
+
+    initialize().catch((error) => {
+      if (!disposed) console.error('Could not initialize the 3D hero scene:', error);
+    });
+
+    return () => {
+      disposed = true;
+      window.cancelAnimationFrame(frameId);
+      if (resizeHandler) window.removeEventListener('resize', resizeHandler);
+      if (renderer) {
+        renderer.dispose();
+        renderer.domElement.remove();
+      }
+      if (environmentTarget) environmentTarget.dispose();
+      if (scene) {
+        scene.traverse((object) => {
+          object.geometry?.dispose();
+          const materials = Array.isArray(object.material) ? object.material : [object.material];
+          materials.filter(Boolean).forEach((material) => {
+            material.map?.dispose();
+            material.dispose();
+          });
+        });
+      }
+    };
+  }, [reducedMotion]);
+
+  return <div className="hero-three-scene" ref={mountRef} aria-hidden="true" />;
 }
 
 function CinematicHero({ onConsult }) {
   const sectionRef = useRef(null);
+  const introRef = useRef(null);
   const logoRef = useRef(null);
   const heroRef = useRef(null);
-  const [progress, setProgress] = useState(0);
+  const copyRef = useRef(null);
+  const orbitRef = useRef(null);
   const [reducedMotion] = useState(() => window.matchMedia('(prefers-reduced-motion: reduce)').matches);
-  const services = [
-    { title: 'Business Consulting', description: 'Clear analysis and practical strategy for confident decisions.', icon: BarChart3 },
-    { title: 'Web & App Development', description: 'Distinctive digital products engineered for measurable growth.', icon: LayoutDashboard },
-    { title: 'Digital Marketing', description: 'Focused campaigns that build attention, trust and demand.', icon: TrendingUp },
-    { title: 'Brand Solutions', description: 'Coherent identities that make ambitious businesses unmistakable.', icon: Sparkles }
-  ];
 
   useEffect(() => {
     const section = sectionRef.current;
+    const intro = introRef.current;
     const logo = logoRef.current;
     const hero = heroRef.current;
-    if (!section || !logo || !hero) return undefined;
+    const copy = copyRef.current;
+    const orbit = orbitRef.current;
+    if (!section || !intro || !logo || !hero || !copy || !orbit) return undefined;
 
     const context = gsap.context(() => {
       if (reducedMotion) {
-        gsap.set([logo, hero], { clearProps: 'all' });
-        setProgress(0);
+        gsap.set(intro, { autoAlpha: 0 });
+        gsap.set(hero, { autoAlpha: 1, clearProps: 'clipPath' });
+        gsap.set([copy, orbit], { autoAlpha: 1 });
         return;
       }
 
-      const orbit = { value: 0 };
-      const timeline = gsap.timeline({
-        scrollTrigger: {
-          trigger: section,
-          start: 'top top',
-          end: '+=300%',
-          pin: true,
-          scrub: 1.1,
-          anticipatePin: 1,
-          invalidateOnRefresh: true
-        }
-      });
-
-      timeline
-        .set(hero, { opacity: 0, scale: 0.96, clipPath: 'circle(0% at 50% 50%)' })
-        .to(logo, { scale: 7.2, duration: 0.38, ease: 'power2.in' })
-        .to(logo, { scale: 11, opacity: 0, duration: 0.16, ease: 'power2.in' }, 0.38)
-        .to(hero, { opacity: 1, scale: 1, clipPath: 'circle(75% at 50% 50%)', duration: 0.38, ease: 'power2.out' }, 0.42)
-        .from('.cinematic-copy', { y: 38, opacity: 0, duration: 0.28, ease: 'power2.out' }, 0.62)
-        .from('.cinematic-object', { scale: 0.72, opacity: 0, rotateY: -35, duration: 0.34, ease: 'power3.out' }, 0.58)
-        .to(orbit, { value: 1, duration: 1, ease: 'none', onUpdate: () => setProgress(orbit.value) }, 0.9);
+      gsap.set(hero, { autoAlpha: 0, clipPath: 'circle(0% at 68% 50%)' });
+      gsap.set([copy, orbit], { autoAlpha: 0 });
+      const orbitCards = orbit.querySelectorAll('.hero-service-card');
+      const keepCardsFacingViewer = () => {
+        gsap.set(orbitCards, { rotationY: -gsap.getProperty(orbit, 'rotationY') });
+      };
+      gsap.set(orbitCards, { rotationY: 35 });
+      gsap.timeline({ delay: 0.25 })
+        .to(logo, {
+          scale: () => Math.max(
+            window.innerWidth / (logo.offsetWidth || 300),
+            window.innerHeight / (logo.offsetHeight || 200)
+          ) * 3,
+          duration: 1.35,
+          ease: 'power2.in'
+        })
+        .to(intro, { autoAlpha: 0, duration: 0.35 }, '-=0.35')
+        .to(hero, { autoAlpha: 1, clipPath: 'circle(150% at 68% 50%)', duration: 0.9, ease: 'power2.out' }, '-=0.25')
+        .fromTo(copy, { y: 26, autoAlpha: 0 }, { y: 0, autoAlpha: 1, duration: 0.65, ease: 'power3.out' }, '-=0.4')
+        .fromTo(
+          orbit,
+          { y: 22, rotationY: -35, autoAlpha: 0 },
+          { y: 0, rotationY: 0, autoAlpha: 1, duration: 0.7, ease: 'power2.out', onUpdate: keepCardsFacingViewer },
+          '-=0.55'
+        )
+        .to(orbit, {
+          rotationY: 360,
+          duration: 22,
+          repeat: -1,
+          ease: 'none',
+          onUpdate: keepCardsFacingViewer
+        });
     }, section);
 
     return () => context.revert();
@@ -526,65 +542,38 @@ function CinematicHero({ onConsult }) {
 
   return (
     <section className={`cinematic-hero ${reducedMotion ? 'reduced-motion' : ''}`} id="top" ref={sectionRef}>
-      <div className="cinematic-logo-intro" ref={logoRef} aria-label="L8R Consultancy">
-        <img src="/logo.png" alt="L8R Consultancy" />
-        <p>SCROLL TO EXPLORE</p>
+      <div className="cinematic-logo-intro" ref={introRef}>
+        <img ref={logoRef} src="/logo.png" alt="L8R Consultancy" />
+        <p>STRATEGY · BUILD · GROW</p>
       </div>
-
       <div className="cinematic-environment" ref={heroRef}>
-        <div className="cinematic-atmosphere" />
-        <div className="cinematic-grid" />
-        <div className="cinematic-copy">
+        <div className="cinematic-atmosphere" aria-hidden="true" />
+        <ThreeHeroScene reducedMotion={reducedMotion} />
+        <div className="cinematic-copy" ref={copyRef}>
           <p className="cinematic-eyebrow">STRATEGIZE <i>•</i> BUILD <i>•</i> GROW</p>
           <h1>YOUR GROWTH.<br /><em>OUR STRATEGY.</em></h1>
           <p className="cinematic-lede">L8R Consultancy helps ambitious businesses scale with cutting-edge solutions, modern technology and strategic expertise.</p>
           <div className="cinematic-actions">
-            <a className="button button-gold" href="#services">EXPLORE SERVICES <ArrowRight size={16} /></a>
+            <a className="button button-light" href="#services">EXPLORE SERVICES <ArrowRight size={16} /></a>
             <a className="text-button" href="#work">VIEW PROJECTS <span><ArrowUpRight size={16} /></span></a>
           </div>
         </div>
-
-        <div className="cinematic-object" aria-hidden="true">
-          <ThreeHeroScene />
+        <div className="hero-service-orbit" ref={orbitRef} aria-label="L8R Consultancy services">
+          {orbitServices.map(({ title, icon: Icon }, index) => (
+            <a className={`hero-service-card hero-service-card-${index + 1}`} href="#services" key={title}>
+              <span className="hero-service-icon"><Icon size={19} strokeWidth={1.6} /></span>
+              <span className="hero-service-number">0{index + 1}</span>
+              <strong>{title}</strong>
+              <span className="hero-service-arrow"><ArrowUpRight size={15} /></span>
+            </a>
+          ))}
         </div>
-
-        <div className="cinematic-orbit" role="region" aria-label="Our four service areas">
-          {services.map((service, index) => {
-            const startAngles = [-135, -45, 135, 45];
-            const angle = ((startAngles[index] + progress * 360) * Math.PI) / 180;
-            const x = Math.cos(angle);
-            const y = Math.sin(angle);
-            const depth = (y + 1) / 2;
-            const scale = 0.78 + depth * 0.22;
-            const opacity = 0.7 + depth * 0.3;
-            const iconIndex = index;
-            const Icon = service.icon;
-            return (
-              <article
-                key={service.title}
-                className="cinematic-service-card"
-                style={{
-                  transform: `translate(-50%, -50%) translate3d(${x * (window.innerWidth < 700 ? 112 : 220)}px, ${y * (window.innerWidth < 700 ? 74 : 144)}px, ${depth * 75}px) rotateY(${x * -10}deg) rotateX(${y * 5}deg) scale(${scale})`,
-                  opacity,
-                  zIndex: 20 + Math.round(depth * 20),
-                  filter: `blur(${(1 - depth) * 0.1}px)`
-                }}
-              >
-                <div className="cinematic-card-top"><span>0{iconIndex + 1}</span><Icon size={19} /></div>
-                <h2>{service.title}</h2>
-                <p>{service.description}</p>
-                <a href="#services">EXPLORE <ArrowUpRight size={13} /></a>
-              </article>
-            );
-          })}
-        </div>
-        <aside className="cinematic-trust"><span>TRUSTED BY</span><b>FORWARD-THINKING<br />BUSINESSES.</b></aside>
-        <div className="cinematic-index"><span className="scroll-mark">↕</span><small>SCROLL TO EXPLORE</small><span className="index-line" /><b>{String(Math.min(4, Math.floor(progress * 3) + 1)).padStart(2, '0')} / 04</b></div>
+        <p className="hero-trust">TRUSTED BY FORWARD-THINKING BUSINESSES</p>
+        <div className="cinematic-index"><span className="scroll-mark">↓</span><small>SCROLL TO EXPLORE</small><span className="index-line" /><small>01 / 04</small></div>
       </div>
     </section>
   );
 }
-
 function PublicSite({ onConsult }) {
   const [site, setSite] = useState({ settings: {}, services: [], articles: [], testimonials: [], industries: [], caseStudies: [], projects: [] });
   const [legalPage, setLegalPage] = useState('');
