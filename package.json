@@ -17,6 +17,7 @@
   "dependencies": {
     "@vitejs/plugin-react": "latest",
     "express": "^5.3.0",
+    "gsap": "^3.15.1",
     "helmet": "^8.3.0",
     "lucide-react": "latest",
     "multer": "^2.5.0",
@@ -24,6 +25,7 @@
     "pg": "^8.16.3",
     "react": "latest",
     "react-dom": "latest",
+    "three": "^0.187.0",
     "vite": "latest"
   }
 }

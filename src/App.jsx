@@ -5,7 +5,11 @@ import {
   Menu, Pause, Phone, Play, Plus, Search, Send, Settings2, Sparkles, Target, Trash2, TrendingUp,
   Users, X
 } from 'lucide-react';
+import { gsap } from 'gsap';
+import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import { api } from './api.js';
+
+gsap.registerPlugin(ScrollTrigger);
 
 const approach = [
   { number: '01', title: 'PLAN', text: 'Understand requirements and identify opportunities.' },
@@ -13,9 +17,10 @@ const approach = [
   { number: '03', title: 'GROW', text: 'Support progress and long-term development.' },
 ];
 
-function ConsultationModal({ open, onClose, services }) {
+function ConsultationModal({ open, onClose, services, phone }) {
   const [sent, setSent] = useState(false);
   const [leadId, setLeadId] = useState('');
+  const [whatsAppHref, setWhatsAppHref] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   if (!open) return null;
@@ -24,21 +29,36 @@ function ConsultationModal({ open, onClose, services }) {
     setBusy(true);
     setError('');
     const form = new FormData(event.currentTarget);
+    const enquiry = {
+      name: form.get('name'),
+      email: form.get('email'),
+      phone: form.get('phone'),
+      company: form.get('company'),
+      service: form.get('service'),
+      message: form.get('message'),
+      preferredContact: form.get('preferredContact')
+    };
     try {
       const result = await api('/public/enquiries', {
         method: 'POST',
         body: {
-          name: form.get('name'),
-          email: form.get('email'),
-          phone: form.get('phone'),
-          company: form.get('company'),
-          service: form.get('service'),
-          message: form.get('message'),
-          preferredContact: form.get('preferredContact'),
+          ...enquiry,
           consent: form.get('consent') === 'on'
         }
       });
       setLeadId(result.id);
+      const whatsAppMessage = [
+        'New L8R Consultancy enquiry',
+        `CRM reference: ${result.id}`,
+        `Name: ${enquiry.name}`,
+        `Phone: ${enquiry.phone}`,
+        `Email: ${enquiry.email}`,
+        `Company: ${enquiry.company || 'Not provided'}`,
+        `Service: ${enquiry.service || 'Not specified'}`,
+        `Preferred contact: ${enquiry.preferredContact}`,
+        `Requirement: ${enquiry.message}`
+      ].join('\n');
+      setWhatsAppHref(`https://wa.me/${String(phone || '+91 7567490201').replace(/\D/g, '')}?text=${encodeURIComponent(whatsAppMessage)}`);
       setSent(true);
     } catch (requestError) {
       setError(requestError.message);
@@ -49,6 +69,7 @@ function ConsultationModal({ open, onClose, services }) {
   function close() {
     setSent(false);
     setLeadId('');
+    setWhatsAppHref('');
     setError('');
     onClose();
   }
@@ -62,8 +83,11 @@ function ConsultationModal({ open, onClose, services }) {
             <div className="success-mark"><Check /></div>
             <p className="eyebrow">ENQUIRY RECEIVED</p>
             <h2>Thank you for reaching out.</h2>
-            <p>Your enquiry has been securely saved as <b>{leadId}</b>. Our team will follow up using your preferred method.</p>
-            <button className="button button-dark" onClick={close}>Back to website</button>
+            <p>Your enquiry has been saved to the CRM as <b>{leadId}</b>. To also send it to WhatsApp, open the message below and tap Send.</p>
+            <div className="success-actions">
+              <a className="button success-whatsapp" href={whatsAppHref} target="_blank" rel="noreferrer">SEND ENQUIRY ON WHATSAPP <ArrowRight size={16} /></a>
+              <button className="button button-dark" onClick={close}>Back to website</button>
+            </div>
           </div>
         ) : (
           <>
@@ -95,14 +119,15 @@ function ConsultationModal({ open, onClose, services }) {
 }
 
 function Header({ onConsult }) {
-  const [scrolled, setScrolled] = useState(false);
+  const [scrolled, setScrolled] = useState(() => window.matchMedia('(prefers-reduced-motion: reduce)').matches);
   const [menu, setMenu] = useState(false);
   useEffect(() => {
-    const handler = () => setScrolled(window.scrollY > 40);
+    const handler = () => setScrolled(window.matchMedia('(prefers-reduced-motion: reduce)').matches || window.scrollY > window.innerHeight * 1.8);
     window.addEventListener('scroll', handler);
+    handler();
     return () => window.removeEventListener('scroll', handler);
   }, []);
-  const links = [['Home', 'top'], ['About', 'about'], ['Services', 'services'], ['Industries', 'industries'], ['Work', 'work'], ['Insights', 'insights'], ['Careers', 'careers'], ['Contact', 'contact']];
+  const links = [['Services', 'services'], ['Projects', 'work'], ['About', 'about'], ['Contact', 'contact']];
   return (
     <header className={scrolled ? 'header scrolled' : 'header'}>
       <a className="brand" href="#top" aria-label="L8R Consultancy home">
@@ -111,77 +136,9 @@ function Header({ onConsult }) {
       <nav className={menu ? 'nav open' : 'nav'} aria-label="Main navigation">
         {links.map(([label, id]) => <a key={id} href={`#${id}`} onClick={() => setMenu(false)}>{label}</a>)}
       </nav>
-      <button className="header-cta" onClick={onConsult}>GET CONSULTATION <ArrowUpRight size={15} /></button>
+      <button className="header-cta" onClick={onConsult}>LET'S TALK <ArrowUpRight size={15} /></button>
       <button className="menu-button" onClick={() => setMenu(!menu)} aria-label="Toggle menu">{menu ? <X /> : <Menu />}</button>
     </header>
-  );
-}
-
-function ServicesOrbit({ services }) {
-  const [active, setActive] = useState(0);
-  const [paused, setPaused] = useState(() => window.matchMedia('(prefers-reduced-motion: reduce)').matches);
-  const [resumeKey, setResumeKey] = useState(0);
-  const drag = useRef(null);
-  const resumeTimer = useRef(null);
-  const count = services.length;
-  const step = count ? 360 / count : 72;
-  const radius = typeof window !== 'undefined' && window.innerWidth < 700 ? 158 : 246;
-  const safeIndex = count ? active % count : 0;
-  useEffect(() => {
-    if (paused || count < 2) return undefined;
-    const timer = window.setInterval(() => setActive((current) => (current + 1) % count), 4500);
-    return () => window.clearInterval(timer);
-  }, [paused, count, resumeKey]);
-  function navigate(direction) {
-    if (!count) return;
-    setActive((current) => (current + direction + count) % count);
-    setPaused(true);
-    window.clearTimeout(resumeTimer.current);
-    resumeTimer.current = window.setTimeout(() => setPaused(false), 6500);
-    setResumeKey((key) => key + 1);
-  }
-  function pointerDown(event) {
-    drag.current = { x: event.clientX, pointerId: event.pointerId };
-    event.currentTarget.setPointerCapture(event.pointerId);
-  }
-  function pointerUp(event) {
-    if (!drag.current) return;
-    const delta = event.clientX - drag.current.x;
-    drag.current = null;
-    if (Math.abs(delta) > 40) navigate(delta < 0 ? 1 : -1);
-  }
-  function keyDown(event) {
-    if (event.key === 'ArrowRight') { event.preventDefault(); navigate(1); }
-    if (event.key === 'ArrowLeft') { event.preventDefault(); navigate(-1); }
-    if (event.key === ' ') { event.preventDefault(); setPaused((value) => !value); }
-  }
-  return (
-    <div className="service-orbit-wrap">
-      <div className="service-orbit" role="region" aria-label="All published services. Use arrow keys to navigate." tabIndex={0} onKeyDown={keyDown} onPointerDown={pointerDown} onPointerUp={pointerUp} onPointerCancel={() => { drag.current = null; }} onFocus={() => setPaused(true)} onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget) && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) setPaused(false); }}>
-        <div className="orbit-halo orbit-halo-one" /><div className="orbit-halo orbit-halo-two" />
-        {count > 0 ? <div className="orbit-stage" style={{ transform: `rotateY(${-safeIndex * step}deg)` }}>
-          {services.map((service, index) => {
-            const Icon = [BriefcaseBusiness, TrendingUp, BarChart3, Target][index % 4];
-            const slug = service.slug || service.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
-            return <article className={`orbit-card ${index === safeIndex ? 'active' : ''}`} key={service.id || service.title} style={{ transform: `rotateY(${index * step}deg) translateZ(${radius}px)` }} aria-hidden={index !== safeIndex}>
-              <div className="orbit-card-face">
-                <div className="orbit-card-top"><span>SERVICE / {String(index + 1).padStart(2, '0')}</span><Icon size={22} /></div>
-                <div className="orbit-icon"><Icon size={28} /></div>
-                <h2>{service.title}</h2><p>{service.description}</p>
-                <a href={`/services/${encodeURIComponent(slug)}`} tabIndex={index === safeIndex ? 0 : -1}>EXPLORE SERVICE <ArrowUpRight size={14} /></a>
-              </div>
-            </article>;
-          })}
-        </div> : <div className="orbit-empty"><Sparkles size={25} /><p>Publish approved services<br />to feature them here.</p><span>PLAN · ADVISE · GROW</span></div>}
-      </div>
-      {count > 0 && <div className="orbit-controls">
-        <button onClick={() => navigate(-1)} aria-label="Previous service"><ChevronLeft size={18} /></button>
-        <div className="orbit-dots" aria-label={`Service ${safeIndex + 1} of ${count}`}>{services.map((service, index) => <button key={service.id || service.title} className={index === safeIndex ? 'active' : ''} onClick={() => { setActive(index); setPaused(true); window.setTimeout(() => setPaused(false), 6500); }} aria-label={`Show ${service.title}`} />)}</div>
-        <button onClick={() => navigate(1)} aria-label="Next service"><ChevronRight size={18} /></button>
-        <button onClick={() => { setPaused((value) => !value); setResumeKey((key) => key + 1); }} aria-label={paused ? 'Play automatic rotation' : 'Pause automatic rotation'}>{paused ? <Play size={15} /> : <Pause size={15} />}</button>
-      </div>}
-      <p className="orbit-caption">L8R / CAPABILITIES <span>{count ? `${String(safeIndex + 1).padStart(2, '0')} — ${String(count).padStart(2, '0')}` : 'COMING SOON'}</span></p>
-    </div>
   );
 }
 
@@ -269,6 +226,365 @@ function Carousel({ items, type = 'services' }) {
   );
 }
 
+function initializeThreeHeroScene(host, THREE, RoomEnvironment, Reflector) {
+    let renderer;
+    try {
+      renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true, powerPreference: 'high-performance' });
+    } catch (error) {
+      console.error('The 3D hero could not initialize WebGL:', error);
+      host.classList.add('webgl-unavailable');
+      return undefined;
+    }
+
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(36, 1, 0.1, 100);
+    camera.position.set(0, 0.15, 11);
+    camera.lookAt(0, -0.5, 0);
+    const pixelRatio = Math.min(window.devicePixelRatio || 1, 1.6);
+    renderer.setPixelRatio(pixelRatio);
+    renderer.setSize(host.clientWidth, host.clientHeight);
+    renderer.setClearColor(0x000000, 0);
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 0.9;
+    renderer.domElement.setAttribute('aria-hidden', 'true');
+    host.appendChild(renderer.domElement);
+
+    const pmrem = new THREE.PMREMGenerator(renderer);
+    const room = new RoomEnvironment();
+    const environment = pmrem.fromScene(room, 0.04);
+    room.dispose();
+    scene.environment = environment.texture;
+    pmrem.dispose();
+    scene.add(new THREE.AmbientLight(0xffffff, 0.35));
+
+    const keyLight = new THREE.SpotLight(0xffffff, 48, 28, Math.PI / 5, 0.5, 1.5);
+    keyLight.position.set(-4, 6, 8);
+    scene.add(keyLight);
+    scene.add(keyLight.target);
+    const rimLight = new THREE.PointLight(0xe4e8ec, 12, 20);
+    rimLight.position.set(5, 1, -3);
+    scene.add(rimLight);
+    const fillLight = new THREE.PointLight(0xffffff, 6, 18);
+    fillLight.position.set(-5, -2, 4);
+    scene.add(fillLight);
+
+    const installation = new THREE.Group();
+    scene.add(installation);
+    const silver = new THREE.MeshStandardMaterial({ color: 0xb2b7bc, metalness: 0.94, roughness: 0.19, envMapIntensity: 1.35 });
+    const darkMetal = new THREE.MeshStandardMaterial({ color: 0x070809, metalness: 0.86, roughness: 0.22, envMapIntensity: 1.3 });
+
+    const labelCanvas = document.createElement('canvas');
+    labelCanvas.width = 1024;
+    labelCanvas.height = 512;
+    const labelContext = labelCanvas.getContext('2d');
+    if (labelContext) {
+      labelContext.fillStyle = '#070809';
+      labelContext.fillRect(0, 0, 1024, 512);
+      labelContext.fillStyle = '#f5f6f7';
+      labelContext.textAlign = 'center';
+      labelContext.font = '600 180px Manrope, Arial, sans-serif';
+      labelContext.fillText('L8R', 512, 270);
+      labelContext.font = '500 37px Arial, sans-serif';
+      labelContext.letterSpacing = '12px';
+      labelContext.fillText('C O N S U L T A N C Y', 512, 340);
+      labelContext.strokeStyle = '#8d9297';
+      labelContext.lineWidth = 2;
+      labelContext.beginPath();
+      labelContext.moveTo(260, 380);
+      labelContext.lineTo(764, 380);
+      labelContext.stroke();
+    }
+    const labelTexture = new THREE.CanvasTexture(labelCanvas);
+    labelTexture.colorSpace = THREE.SRGBColorSpace;
+    const box = new THREE.Mesh(
+      new THREE.BoxGeometry(3.35, 1.95, 0.22),
+      [silver, silver, silver, silver, new THREE.MeshStandardMaterial({ color: 0xffffff, map: labelTexture, metalness: 0.48, roughness: 0.26 }), darkMetal]
+    );
+    box.rotation.set(-0.08, -0.22, -0.08);
+    installation.add(box);
+    let sceneDisposed = false;
+    const officialLogo = new Image();
+    officialLogo.onload = () => {
+      if (sceneDisposed || !labelContext) return;
+      labelContext.fillStyle = '#070809';
+      labelContext.fillRect(0, 0, labelCanvas.width, labelCanvas.height);
+      const scale = Math.min(780 / officialLogo.width, 390 / officialLogo.height);
+      const width = officialLogo.width * scale;
+      const height = officialLogo.height * scale;
+      labelContext.filter = 'grayscale(1) invert(1)';
+      labelContext.drawImage(officialLogo, (labelCanvas.width - width) / 2, (labelCanvas.height - height) / 2, width, height);
+      labelContext.filter = 'none';
+      labelTexture.needsUpdate = true;
+    };
+    officialLogo.src = '/logo.png';
+
+    [
+      { rotation: [1.18, 0.12, -0.18], scale: [1.38, 0.72, 1] },
+      { rotation: [0.38, 1.08, 0.62], scale: [1.28, 0.74, 1] },
+      { rotation: [1.52, -0.16, 0.55], scale: [1.48, 0.72, 1] }
+    ].forEach(({ rotation, scale }) => {
+      const orbit = new THREE.Mesh(new THREE.TorusGeometry(3.05, 0.025, 12, 220), silver);
+      orbit.rotation.set(...rotation);
+      orbit.scale.set(...scale);
+      installation.add(orbit);
+    });
+
+    const platform = new THREE.Group();
+    platform.position.y = -2.25;
+    scene.add(platform);
+    const base = new THREE.Mesh(new THREE.CylinderGeometry(2.35, 2.58, 0.16, 96), darkMetal);
+    platform.add(base);
+    const lip = new THREE.Mesh(new THREE.TorusGeometry(2.43, 0.055, 12, 96), silver);
+    lip.rotation.x = Math.PI / 2;
+    lip.position.y = 0.1;
+    platform.add(lip);
+
+    const floor = new Reflector(new THREE.PlaneGeometry(18, 14), {
+      clipBias: 0.003,
+      color: 0x57595c,
+      textureWidth: 512,
+      textureHeight: 512
+    });
+    floor.material.fragmentShader = floor.material.fragmentShader.replace(
+      'gl_FragColor = vec4( blendOverlay( base.rgb, color ), 1.0 );',
+      'gl_FragColor = vec4( blendOverlay( base.rgb, color ), base.a );'
+    );
+    floor.material.transparent = true;
+    floor.material.depthWrite = false;
+    floor.rotation.x = -Math.PI / 2;
+    floor.position.set(0, -2.35, -1.5);
+    scene.add(floor);
+    const decorations = new THREE.Group();
+    scene.add(decorations);
+    [
+      { geometry: new THREE.SphereGeometry(0.13, 24, 24), position: [3.65, 1.45, 0.3] },
+      { geometry: new THREE.SphereGeometry(0.09, 20, 20), position: [-3.6, -1.7, 0.6] },
+      { geometry: new THREE.BoxGeometry(0.34, 0.34, 0.34), position: [-2.7, 1.8, -0.5] },
+      { geometry: new THREE.BoxGeometry(0.32, 0.32, 0.32), position: [2.85, -1.75, -0.2] }
+    ].forEach(({ geometry, position }) => {
+      const object = new THREE.Mesh(geometry, silver);
+      object.position.set(...position);
+      object.userData.initialY = position[1];
+      object.rotation.set(0.35, 0.55, 0.2);
+      decorations.add(object);
+    });
+
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const pointer = { x: 0, y: 0 };
+    const onPointerMove = (event) => {
+      const bounds = host.getBoundingClientRect();
+      pointer.x = ((event.clientX - bounds.left) / bounds.width - 0.5) * 2;
+      pointer.y = ((event.clientY - bounds.top) / bounds.height - 0.5) * 2;
+    };
+    window.addEventListener('pointermove', onPointerMove);
+    const resizeObserver = new ResizeObserver(() => {
+      const width = host.clientWidth;
+      const height = host.clientHeight;
+      if (!width || !height) return;
+      camera.aspect = width / height;
+      camera.updateProjectionMatrix();
+      renderer.setSize(width, height);
+    });
+    resizeObserver.observe(host);
+
+    let frameId;
+    let isVisible = true;
+    const startTime = performance.now();
+    const renderFrame = () => {
+      frameId = 0;
+      if (!isVisible) return;
+      const time = (performance.now() - startTime) / 1000;
+      if (!reducedMotion) {
+        installation.rotation.y += ((pointer.x * 0.08) - installation.rotation.y) * 0.025;
+        installation.rotation.x += ((-pointer.y * 0.045) - installation.rotation.x) * 0.025;
+        box.position.y = Math.sin(time * 0.65) * 0.08;
+        decorations.rotation.y = Math.sin(time * 0.18) * 0.1;
+        decorations.children.forEach((object, index) => {
+          object.rotation.y += 0.002 + index * 0.0004;
+          object.position.y = object.userData.initialY + Math.sin(time * 0.6 + index) * 0.08;
+        });
+      }
+      renderer.render(scene, camera);
+      frameId = window.requestAnimationFrame(renderFrame);
+    };
+    camera.aspect = host.clientWidth / host.clientHeight;
+    camera.updateProjectionMatrix();
+    const visibilityObserver = typeof IntersectionObserver === 'undefined' ? null : new IntersectionObserver(([entry]) => {
+      isVisible = entry.isIntersecting;
+      if (isVisible && !frameId) renderFrame();
+      if (!isVisible && frameId) {
+        window.cancelAnimationFrame(frameId);
+        frameId = 0;
+      }
+    });
+    if (visibilityObserver) {
+      visibilityObserver.observe(host);
+    } else {
+      renderFrame();
+    }
+
+    return () => {
+      sceneDisposed = true;
+      window.cancelAnimationFrame(frameId);
+      window.removeEventListener('pointermove', onPointerMove);
+      resizeObserver.disconnect();
+      if (visibilityObserver) visibilityObserver.disconnect();
+      scene.traverse((object) => {
+        if (object.geometry) object.geometry.dispose();
+        if (object.material) {
+          const materials = Array.isArray(object.material) ? object.material : [object.material];
+          materials.forEach((material) => material.dispose());
+        }
+      });
+      environment.dispose();
+      renderer.dispose();
+      renderer.domElement.remove();
+    };
+}
+
+function ThreeHeroScene() {
+  const hostRef = useRef(null);
+
+  useEffect(() => {
+    const host = hostRef.current;
+    if (!host) return undefined;
+    let cancelled = false;
+    let cleanupScene;
+    Promise.all([
+      import('three'),
+      import('three/addons/environments/RoomEnvironment.js'),
+      import('three/addons/objects/Reflector.js')
+    ]).then(([THREE, { RoomEnvironment }, { Reflector }]) => {
+      if (cancelled) return;
+      cleanupScene = initializeThreeHeroScene(host, THREE, RoomEnvironment, Reflector);
+    }).catch((error) => {
+      if (cancelled) return;
+      console.error('The 3D hero could not load its rendering modules:', error);
+      host.classList.add('webgl-unavailable');
+    });
+    return () => {
+      cancelled = true;
+      if (cleanupScene) cleanupScene();
+    };
+  }, []);
+
+  return <div className="three-hero-scene" ref={hostRef} aria-hidden="true"><div className="scene-fallback-label">L8R<small>CONSULTANCY</small></div></div>;
+}
+
+function CinematicHero({ onConsult }) {
+  const sectionRef = useRef(null);
+  const logoRef = useRef(null);
+  const heroRef = useRef(null);
+  const [progress, setProgress] = useState(0);
+  const [reducedMotion] = useState(() => window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+  const services = [
+    { title: 'Business Consulting', description: 'Clear analysis and practical strategy for confident decisions.', icon: BarChart3 },
+    { title: 'Web & App Development', description: 'Distinctive digital products engineered for measurable growth.', icon: LayoutDashboard },
+    { title: 'Digital Marketing', description: 'Focused campaigns that build attention, trust and demand.', icon: TrendingUp },
+    { title: 'Brand Solutions', description: 'Coherent identities that make ambitious businesses unmistakable.', icon: Sparkles }
+  ];
+
+  useEffect(() => {
+    const section = sectionRef.current;
+    const logo = logoRef.current;
+    const hero = heroRef.current;
+    if (!section || !logo || !hero) return undefined;
+
+    const context = gsap.context(() => {
+      if (reducedMotion) {
+        gsap.set([logo, hero], { clearProps: 'all' });
+        setProgress(0);
+        return;
+      }
+
+      const orbit = { value: 0 };
+      const timeline = gsap.timeline({
+        scrollTrigger: {
+          trigger: section,
+          start: 'top top',
+          end: '+=300%',
+          pin: true,
+          scrub: 1.1,
+          anticipatePin: 1,
+          invalidateOnRefresh: true
+        }
+      });
+
+      timeline
+        .set(hero, { opacity: 0, scale: 0.96, clipPath: 'circle(0% at 50% 50%)' })
+        .to(logo, { scale: 7.2, duration: 0.38, ease: 'power2.in' })
+        .to(logo, { scale: 11, opacity: 0, duration: 0.16, ease: 'power2.in' }, 0.38)
+        .to(hero, { opacity: 1, scale: 1, clipPath: 'circle(75% at 50% 50%)', duration: 0.38, ease: 'power2.out' }, 0.42)
+        .from('.cinematic-copy', { y: 38, opacity: 0, duration: 0.28, ease: 'power2.out' }, 0.62)
+        .from('.cinematic-object', { scale: 0.72, opacity: 0, rotateY: -35, duration: 0.34, ease: 'power3.out' }, 0.58)
+        .to(orbit, { value: 1, duration: 1, ease: 'none', onUpdate: () => setProgress(orbit.value) }, 0.9);
+    }, section);
+
+    return () => context.revert();
+  }, [reducedMotion]);
+
+  return (
+    <section className={`cinematic-hero ${reducedMotion ? 'reduced-motion' : ''}`} id="top" ref={sectionRef}>
+      <div className="cinematic-logo-intro" ref={logoRef} aria-label="L8R Consultancy">
+        <img src="/logo.png" alt="L8R Consultancy" />
+        <p>SCROLL TO EXPLORE</p>
+      </div>
+
+      <div className="cinematic-environment" ref={heroRef}>
+        <div className="cinematic-atmosphere" />
+        <div className="cinematic-grid" />
+        <div className="cinematic-copy">
+          <p className="cinematic-eyebrow">STRATEGIZE <i>•</i> BUILD <i>•</i> GROW</p>
+          <h1>YOUR GROWTH.<br /><em>OUR STRATEGY.</em></h1>
+          <p className="cinematic-lede">L8R Consultancy helps ambitious businesses scale with cutting-edge solutions, modern technology and strategic expertise.</p>
+          <div className="cinematic-actions">
+            <a className="button button-gold" href="#services">EXPLORE SERVICES <ArrowRight size={16} /></a>
+            <a className="text-button" href="#work">VIEW PROJECTS <span><ArrowUpRight size={16} /></span></a>
+          </div>
+        </div>
+
+        <div className="cinematic-object" aria-hidden="true">
+          <ThreeHeroScene />
+        </div>
+
+        <div className="cinematic-orbit" role="region" aria-label="Our four service areas">
+          {services.map((service, index) => {
+            const startAngles = [-135, -45, 135, 45];
+            const angle = ((startAngles[index] + progress * 360) * Math.PI) / 180;
+            const x = Math.cos(angle);
+            const y = Math.sin(angle);
+            const depth = (y + 1) / 2;
+            const scale = 0.78 + depth * 0.22;
+            const opacity = 0.7 + depth * 0.3;
+            const iconIndex = index;
+            const Icon = service.icon;
+            return (
+              <article
+                key={service.title}
+                className="cinematic-service-card"
+                style={{
+                  transform: `translate(-50%, -50%) translate3d(${x * (window.innerWidth < 700 ? 112 : 220)}px, ${y * (window.innerWidth < 700 ? 74 : 144)}px, ${depth * 75}px) rotateY(${x * -10}deg) rotateX(${y * 5}deg) scale(${scale})`,
+                  opacity,
+                  zIndex: 20 + Math.round(depth * 20),
+                  filter: `blur(${(1 - depth) * 0.1}px)`
+                }}
+              >
+                <div className="cinematic-card-top"><span>0{iconIndex + 1}</span><Icon size={19} /></div>
+                <h2>{service.title}</h2>
+                <p>{service.description}</p>
+                <a href="#services">EXPLORE <ArrowUpRight size={13} /></a>
+              </article>
+            );
+          })}
+        </div>
+        <aside className="cinematic-trust"><span>TRUSTED BY</span><b>FORWARD-THINKING<br />BUSINESSES.</b></aside>
+        <div className="cinematic-index"><span className="scroll-mark">↕</span><small>SCROLL TO EXPLORE</small><span className="index-line" /><b>{String(Math.min(4, Math.floor(progress * 3) + 1)).padStart(2, '0')} / 04</b></div>
+      </div>
+    </section>
+  );
+}
+
 function PublicSite({ onConsult }) {
   const [site, setSite] = useState({ settings: {}, services: [], articles: [], testimonials: [], industries: [], caseStudies: [], projects: [] });
   const [legalPage, setLegalPage] = useState('');
@@ -276,27 +592,12 @@ function PublicSite({ onConsult }) {
     api('/public/site').then(setSite).catch((error) => console.error('Could not load published website content:', error.message));
   }, []);
   const settings = site.settings;
-  const heroLines = (settings.hero_title || 'YOUR VISION.\nOUR STRATEGY.\nYOUR GROWTH.').split(/\r?\n/);
 
   return (
     <>
       <Header onConsult={onConsult} />
       <main>
-        <section className="hero" id="top">
-          <div className="grain" />
-          <div className="hero-grid" />
-          <div className="hero-content">
-            <p className="eyebrow"><span /> STRATEGY WITH PURPOSE</p>
-            <h1>{heroLines.map((line, index) => <React.Fragment key={index}>{index === 1 ? <em>{line}</em> : line}{index < heroLines.length - 1 && <br />}</React.Fragment>)}</h1>
-            <p className="hero-lede">{settings.hero_body || 'Strategic guidance, professional solutions and business-focused support designed to help individuals and organizations move forward.'}</p>
-            <div className="hero-actions">
-              <a className="button button-gold" href="#services">EXPLORE OUR SERVICES <ArrowRight size={16} /></a>
-              <button className="text-button" onClick={onConsult}>LET'S CONNECT <span><ArrowUpRight size={16} /></span></button>
-            </div>
-          </div>
-          <ServicesOrbit services={site.services} />
-          <div className="hero-index"><b>01</b><span /><small>INTRODUCTION</small></div>
-        </section>
+        <CinematicHero onConsult={onConsult} />
 
         <section className="intro section" id="about">
           <div className="section-label"><span>02</span><p>ABOUT L8R</p></div>
@@ -311,7 +612,7 @@ function PublicSite({ onConsult }) {
         </section>
 
         <section className="work section" id="work">
-          <div className="section-heading"><div><p className="eyebrow">SELECTED PROJECTS</p><h2>Progress, made<br /><em>practical.</em></h2></div><p>Only approved projects and verified outcomes are featured here.</p></div>
+          <div className="section-heading"><div><p className="eyebrow">SELECTED PROJECTS</p><h2>OUR WORK.<br /><em>OUR IMPACT.</em></h2></div><p>Only approved projects and verified outcomes are featured here.</p></div>
           {site.projects.length ? <Carousel items={site.projects} type="projects" /> : <p className="empty-public">Approved project work will appear here when published by L8R.</p>}
         </section>
 
@@ -817,16 +1118,22 @@ export default function App() {
   const [consult, setConsult] = useState(false);
   const [crm, setCrm] = useState(() => window.location.hash === '#crm' || window.location.pathname === '/crm');
   const [servicesList, setServicesList] = useState([]);
+  const [whatsAppPhone, setWhatsAppPhone] = useState('+91 7567490201');
   useEffect(() => {
     const handler = () => setCrm(window.location.hash === '#crm' || window.location.pathname === '/crm');
     window.addEventListener('hashchange', handler);
     return () => window.removeEventListener('hashchange', handler);
   }, []);
-  useEffect(() => { api('/public/site').then((site) => setServicesList(site.services)).catch(() => {}); }, []);
+  useEffect(() => {
+    api('/public/site').then((site) => {
+      setServicesList(site.services);
+      setWhatsAppPhone(site.settings.phone || '+91 7567490201');
+    }).catch(() => {});
+  }, []);
   return (
     <>
       {crm ? <CRM /> : <PublicSite onConsult={() => setConsult(true)} />}
-      <ConsultationModal open={consult} onClose={() => setConsult(false)} services={servicesList} />
+      <ConsultationModal open={consult} onClose={() => setConsult(false)} services={servicesList} phone={whatsAppPhone} />
     </>
   );
 }
