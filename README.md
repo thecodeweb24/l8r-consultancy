@@ -12,8 +12,9 @@ Responsive React website and authenticated CRM for L8R Consultancy. The Express 
 
 1. Create a Supabase project. In **Project Settings → Database → Connect**, copy a server-side PostgreSQL connection URI. Use the direct connection or session pooler for the app; do not use a browser key or expose a service-role key.
 2. In the Supabase Dashboard, open **SQL Editor → New query**. Open `migrations/001_initial_schema.sql` in this repository, copy its full contents into the SQL Editor, and run it. This creates the tables and indexes the app requires. The app deliberately does not attempt to create or alter the database schema on startup.
-3. If an existing database already has any of these tables, review the migration and existing schema before running it. The checked-in migration is designed for fresh projects and is safe to re-run for tables and indexes it created; it does not import data from an old local SQLite file.
-4. Configure the local environment and provision the initial CRM super-admin as described below.
+3. Run `migrations/003_client_companies.sql` in the same SQL Editor to enable the CRM-managed company list and public client strip.
+4. If an existing database already has any of these tables, review the migration and existing schema before running it. The checked-in migration is designed for fresh projects and is safe to re-run for tables and indexes it created; it does not import data from an old local SQLite file.
+5. Configure the local environment and provision the initial CRM super-admin as described below.
 
 ```powershell
 npm install
@@ -52,12 +53,12 @@ The project includes `vercel.json` and a Node.js serverless entry point. All req
 1. Deploy this project to Vercel from its dashboard or CLI. The build command is `npm run build`; the static output is `dist/`.
 2. Before deploying, run `npm run admin:create` locally to provision the CRM account in Supabase. The admin password is needed only for this one-time command; do not add it to Vercel environment variables.
 3. In Vercel **Project Settings → Environment Variables**, set `DATABASE_URL`, `SITE_URL`, `TRUST_PROXY=true`, and `PGPOOL_MAX=1`. Use the production URL for `SITE_URL`. Add SMTP variables only if enquiry email notifications are required. Never add `.env.local` or credentials to Git.
-4. Before the first deployment, run `migrations/002_vercel_uploads.sql` in the same Supabase SQL Editor. Vercel's filesystem is temporary, so this migration stores project image bytes in PostgreSQL. The serverless function refuses to start if the required table is missing.
+4. Before the first deployment, run `migrations/002_vercel_uploads.sql` and `migrations/003_client_companies.sql` in the same Supabase SQL Editor. Vercel's filesystem is temporary, so the former migration stores project image bytes in PostgreSQL; the latter enables company management. The server refuses to start if either required table is missing.
 5. Deploy and verify `/api/health` reports `{"ok":true,"database":"postgres"}`, then sign in at `/#crm`.
 
 Vercel's serverless request payload limit is lower than the local upload limit, so project images are limited to 512 KB each on Vercel (up to one cover plus five gallery images per request). Locally, uploads remain on disk and support files up to 8 MB each. Database backups include image bytes stored by Vercel; do not rely on the function's `/tmp` directory for persistent files.
 
-If Vercel returns `FUNCTION_INVOCATION_FAILED` for `/api/health` or `/sitemap.xml`, check that `DATABASE_URL` is set for the deployed Vercel environment and that both SQL migrations have run, then redeploy. `public/robots.txt` is deliberately static so crawler access to robots rules does not depend on the database function; update its sitemap URL if the production domain changes.
+If Vercel returns `FUNCTION_INVOCATION_FAILED` for `/api/health` or `/sitemap.xml`, check that `DATABASE_URL` is set for the deployed Vercel environment and that the required SQL migrations have run, then redeploy. `public/robots.txt` is deliberately static so crawler access to robots rules does not depend on the database function; update its sitemap URL if the production domain changes.
 
 ## Email notifications
 
@@ -67,7 +68,7 @@ Set `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, `MAIL_FROM`, and `AD
 
 - Public enquiries are validated, rate limited, consent-gated, and stored as lead records.
 - Admins can search/filter leads, update pipeline stages, assign staff, schedule follow-ups, add internal notes, export authorized records, and manage appointments.
-- Admins can manage published services, image-backed projects, insights, testimonials, homepage/contact copy, policy text, and editable industry lists. New content is unpublished until explicitly approved.
+- Admins can manage published services, client companies, image-backed projects, insights, testimonials, homepage/contact copy, policy text, and editable industry lists. New content is unpublished until explicitly approved.
 - Project cover and gallery images remain private until the project is published. Project pages have clean `/projects/<slug>` URLs; published service pages use `/services/<slug>`. The sitemap is dynamically generated from published pages.
 - Set `SITE_URL` to the canonical production HTTPS origin in `.env.local` or `.env`. `/robots.txt` and `/sitemap.xml` are served by the app; CRM URLs send `X-Robots-Tag: noindex`.
 - Dashboard counts and charts use stored records; no example customers, testimonials, or performance numbers are seeded.

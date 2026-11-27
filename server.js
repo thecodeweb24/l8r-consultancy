@@ -56,6 +56,10 @@ const schemaState = await pool.query("SELECT to_regclass('public.users') AS user
 if (!schemaState.rows[0].users) {
   throw new Error('Supabase schema is not installed. Run migrations/001_initial_schema.sql in the Supabase SQL Editor.');
 }
+const companySchema = await pool.query("SELECT to_regclass('public.client_companies') AS client_companies");
+if (!companySchema.rows[0].client_companies) {
+  throw new Error('Client company management is not installed. Run migrations/003_client_companies.sql in the Supabase SQL Editor.');
+}
 if (process.env.VERCEL) {
   const uploadSchema = await pool.query("SELECT to_regclass('public.project_uploads') AS project_uploads");
   if (!uploadSchema.rows[0].project_uploads) {
@@ -255,6 +259,8 @@ api.get('/public/site', async (_req, res) => {
     articles: (await statement(`SELECT id,title,category,excerpt,body,created_at,slug,seo_title,meta_description
       FROM articles WHERE published = 1 ORDER BY created_at DESC LIMIT 12`).all()).map((article) => ({ ...article, slug: article.slug || slugify(article.title) })),
     testimonials: await statement('SELECT id, client_name, company, quote FROM testimonials WHERE published = 1 ORDER BY created_at DESC').all(),
+    companies: await statement(`SELECT id,name,logo_url,website_url
+      FROM client_companies WHERE published = 1 ORDER BY sort_order, name`).all(),
     caseStudies: await statement('SELECT id,title,industry,overview,challenge,solution,results FROM case_studies WHERE published = 1 ORDER BY created_at DESC LIMIT 12').all(),
     projects: await statement(`SELECT id,title,slug,category,client_name,overview,challenge,solution,results,start_date,completion_date,cover_image,image_alt,gallery_json,featured,seo_title,meta_description
       FROM projects WHERE publication_status = 'PUBLISHED' ORDER BY featured DESC, created_at DESC LIMIT 30`).all()
@@ -475,9 +481,24 @@ function resourceConfig(resource) {
     }, required: ['title'] },
     testimonials: { table: 'testimonials', fields: { client_name: 120, company: 160, quote: 3000, published: 'bool' }, required: ['client_name','quote'] },
     case_studies: { table: 'case_studies', fields: { title: 200, industry: 120, overview: 3000, challenge: 3000, solution: 3000, results: 3000, published: 'bool' }, required: ['title'] },
-    appointments: { table: 'appointments', fields: { lead_id: 100, title: 160, client_name: 120, email: 254, phone: 40, starts_at: 40, status: 30, notes: 3000 }, required: ['title','client_name','starts_at'] }
+    appointments: { table: 'appointments', fields: { lead_id: 100, title: 160, client_name: 120, email: 254, phone: 40, starts_at: 40, status: 30, notes: 3000 }, required: ['title','client_name','starts_at'] },
+    companies: { table: 'client_companies', fields: {
+      name: 160, logo_url: 500, website_url: 500, published: 'bool', sort_order: 'int'
+    }, required: ['name'], orderBy: 'sort_order, name', updatedAt: true }
   };
   return configs[resource];
+}
+
+function validateCompanyUrls(values) {
+  for (const field of ['logo_url', 'website_url']) {
+    const value = values[field];
+    if (!value) continue;
+    let url;
+    try { url = new URL(value); } catch { throw new Error(`${field === 'logo_url' ? 'Logo' : 'Website'} URL must be a valid HTTPS URL.`); }
+    if (url.protocol !== 'https:' || url.username || url.password) {
+      throw new Error(`${field === 'logo_url' ? 'Logo' : 'Website'} URL must use HTTPS and cannot contain credentials.`);
+    }
+  }
 }
 const projectConfig = {
   table: 'projects',
@@ -682,8 +703,8 @@ api.get('/crm/:resource', async (req, res, next) => {
   }
   const config = resourceConfig(resource);
   if (!config || resource === 'appointments' && req.user.role === 'STAFF') return fail(res, 404, 'Resource not found.');
-  if (['services','articles','testimonials'].includes(resource) && req.user.role === 'STAFF') return fail(res, 403, 'You do not have permission to manage website content.');
-  const rows = await statement(`SELECT * FROM ${config.table} ORDER BY created_at DESC`).all();
+  if (['services','articles','testimonials','companies'].includes(resource) && req.user.role === 'STAFF') return fail(res, 403, 'You do not have permission to manage website content.');
+  const rows = await statement(`SELECT * FROM ${config.table} ORDER BY ${config.orderBy || 'created_at DESC'}`).all();
   res.json(rows);
 });
 
@@ -692,9 +713,10 @@ api.post('/crm/:resource', async (req, res, next) => {
   if (resource === 'team') return next();
   const config = resourceConfig(resource);
   if (!config || resource === 'appointments' && req.user.role === 'STAFF') return fail(res, 404, 'Resource not found.');
-  if (['services','articles','testimonials'].includes(resource) && req.user.role === 'STAFF') return fail(res, 403, 'You do not have permission to manage website content.');
+  if (['services','articles','testimonials','companies'].includes(resource) && req.user.role === 'STAFF') return fail(res, 403, 'You do not have permission to manage website content.');
   try {
     const values = parseResourceBody(req.body, config);
+    if (resource === 'companies') validateCompanyUrls(values);
     if (resource === 'services') {
       values.slug = await uniqueServiceSlug(values.title, values.slug);
       if (values.published && !values.meta_description) values.meta_description = values.description.slice(0, 165);
@@ -705,7 +727,7 @@ api.post('/crm/:resource', async (req, res, next) => {
       if (values.published && !values.meta_description) values.meta_description = (values.excerpt || values.body).slice(0, 165);
       validatePublishedArticle(values);
     }
-    const recordId = id(resource.slice(0, -1));
+    const recordId = resource === 'companies' ? id('company') : id(resource.slice(0, -1));
     const fields = Object.keys(values);
     const columns = ['id', ...fields];
     await statement(`INSERT INTO ${config.table} (${columns.join(',')}) VALUES (${columns.map(() => '?').join(',')})`)
@@ -724,9 +746,14 @@ api.patch('/crm/:resource/:id', async (req, res, next) => {
   if (resource === 'team') return next();
   const config = resourceConfig(resource);
   if (!config || resource === 'appointments' && req.user.role === 'STAFF') return fail(res, 404, 'Resource not found.');
-  if (['services','articles','testimonials'].includes(resource) && req.user.role === 'STAFF') return fail(res, 403, 'You do not have permission to manage website content.');
+  if (['services','articles','testimonials','companies'].includes(resource) && req.user.role === 'STAFF') return fail(res, 403, 'You do not have permission to manage website content.');
   try {
     const values = parseResourceBody(req.body, config, true);
+    if (resource === 'companies') {
+      const current = await statement('SELECT * FROM client_companies WHERE id = ?').get(req.params.id);
+      if (!current) return fail(res, 404, 'Company not found.');
+      validateCompanyUrls({ ...current, ...values });
+    }
     if (resource === 'services' && (values.title !== undefined || values.slug !== undefined)) {
       const current = await statement('SELECT title,slug FROM services WHERE id = ?').get(req.params.id);
       if (!current) return fail(res, 404, 'Record not found.');
@@ -752,7 +779,8 @@ api.patch('/crm/:resource/:id', async (req, res, next) => {
       if (values.published && !values.meta_description) values.meta_description = (values.excerpt || current?.excerpt || values.body || current?.body || '').slice(0, 165);
       validatePublishedArticle({ ...current, ...values });
     }
-    const result = await statement(`UPDATE ${config.table} SET ${fields.map((field) => `${field} = ?`).join(', ')} WHERE id = ?`).run(...fields.map((field) => values[field]), req.params.id);
+    const updatedAt = config.updatedAt ? ", updated_at = datetime('now')" : '';
+    const result = await statement(`UPDATE ${config.table} SET ${fields.map((field) => `${field} = ?`).join(', ')}${updatedAt} WHERE id = ?`).run(...fields.map((field) => values[field]), req.params.id);
     if (!result.changes) return fail(res, 404, 'Record not found.');
     await audit(req.user.id, 'UPDATE', resource, req.params.id);
     res.json(await statement(`SELECT * FROM ${config.table} WHERE id = ?`).get(req.params.id));
@@ -763,7 +791,7 @@ api.delete('/crm/:resource/:id', async (req, res) => {
   const { resource } = req.params;
   const config = resourceConfig(resource);
   if (!config || resource === 'appointments' && req.user.role === 'STAFF') return fail(res, 404, 'Resource not found.');
-  if (['services','articles','testimonials'].includes(resource) && req.user.role === 'STAFF') return fail(res, 403, 'You do not have permission to manage website content.');
+  if (['services','articles','testimonials','companies'].includes(resource) && req.user.role === 'STAFF') return fail(res, 403, 'You do not have permission to manage website content.');
   const result = await statement(`DELETE FROM ${config.table} WHERE id = ?`).run(req.params.id);
   if (!result.changes) return fail(res, 404, 'Record not found.');
   await audit(req.user.id, 'DELETE', resource, req.params.id);

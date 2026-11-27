@@ -226,7 +226,7 @@ function Carousel({ items, type = 'services' }) {
   );
 }
 
-function ThreeHeroScene({ reducedMotion }) {
+function ThreeHeroScene({ reducedMotion, scrollProgressRef }) {
   const mountRef = useRef(null);
 
   useEffect(() => {
@@ -239,6 +239,9 @@ function ThreeHeroScene({ reducedMotion }) {
     let scene;
     let environmentTarget;
     let resizeHandler;
+    let pointerAimHandler;
+    let floor;
+    let mirror;
 
     async function initialize() {
       const [THREE, { RoomEnvironment }, { Reflector }] = await Promise.all([
@@ -250,14 +253,18 @@ function ThreeHeroScene({ reducedMotion }) {
 
       const width = Math.max(mount.clientWidth, 1);
       const height = Math.max(mount.clientHeight, 1);
-      const pixelRatio = Math.min(window.devicePixelRatio || 1, 1.5);
+      const getLayout = (viewportWidth) => viewportWidth < 768 ? 'mobile' : viewportWidth < 1024 ? 'tablet' : 'desktop';
+      const layout = getLayout(width);
+      let currentLayout = layout;
+      const pixelRatio = layout === 'mobile'
+        ? Math.min(Math.max(window.devicePixelRatio || 1, 1.5), 2)
+        : Math.min(window.devicePixelRatio || 1, 1.5);
       scene = new THREE.Scene();
       scene.fog = new THREE.Fog(0x050505, 11, 26);
 
-      const camera = new THREE.PerspectiveCamera(38, width / height, 0.1, 80);
-      const mobile = width < 760;
-      camera.position.set(0, mobile ? 1.1 : 0.15, mobile ? 12 : 11);
-      camera.lookAt(0, mobile ? 1.1 : 0, 0);
+      const camera = new THREE.PerspectiveCamera(layout === 'mobile' ? 40 : layout === 'tablet' ? 40 : 38, width / height, 0.1, 80);
+      camera.position.set(0, layout === 'mobile' ? 0.25 : 0.15, layout === 'mobile' ? 9.6 : layout === 'tablet' ? 11.5 : 11);
+      camera.lookAt(0, layout === 'mobile' ? 0.15 : 0, 0);
 
       renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true, powerPreference: 'high-performance' });
       renderer.setPixelRatio(pixelRatio);
@@ -284,9 +291,13 @@ function ThreeHeroScene({ reducedMotion }) {
       const edgeLight = new THREE.PointLight(0xffffff, 14, 12);
       edgeLight.position.set(5, 2, -3);
       scene.add(edgeLight);
+      const mobileAccentLight = new THREE.PointLight(0xffffff, layout === 'mobile' ? 7 : 0, 10);
+      mobileAccentLight.position.set(-2, 3, 6);
+      scene.add(mobileAccentLight);
 
       const installation = new THREE.Group();
-      installation.position.set(mobile ? 0.15 : 2, mobile ? -0.75 : 0, 0);
+      installation.position.set(layout === 'mobile' ? 0 : layout === 'tablet' ? 1.4 : 2, layout === 'mobile' ? 0.7 : 0, 0);
+      installation.scale.setScalar(layout === 'mobile' ? 1.3 : layout === 'tablet' ? 0.9 : 1);
       scene.add(installation);
 
       const panelMaterial = new THREE.MeshPhysicalMaterial({
@@ -304,30 +315,18 @@ function ThreeHeroScene({ reducedMotion }) {
       );
       installation.add(frame);
 
-      const logoCanvas = document.createElement('canvas');
-      logoCanvas.width = 1024;
-      logoCanvas.height = 512;
-      const context = logoCanvas.getContext('2d');
-      if (context) {
-        context.clearRect(0, 0, logoCanvas.width, logoCanvas.height);
-        context.textAlign = 'center';
-        context.fillStyle = '#f4f4f4';
-        context.font = '600 230px Arial, sans-serif';
-        context.fillText('L8R', 512, 264);
-        context.fillStyle = '#b8b8b8';
-        context.font = '500 42px Arial, sans-serif';
-        context.letterSpacing = '18px';
-        context.fillText('CONSULTANCY', 512, 344);
-        context.fillStyle = '#858585';
-        context.fillRect(295, 377, 434, 2);
-        context.font = '400 20px Arial, sans-serif';
-        context.letterSpacing = '8px';
-        context.fillText('PLAN  •  ADVISE  •  GROW', 512, 416);
+      const logoTexture = await new THREE.TextureLoader().loadAsync('/metallic-logo.png');
+      if (disposed) {
+        logoTexture.dispose();
+        return;
       }
-      const logoTexture = new THREE.CanvasTexture(logoCanvas);
       logoTexture.colorSpace = THREE.SRGBColorSpace;
+      logoTexture.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
       const logoMaterial = new THREE.MeshBasicMaterial({ map: logoTexture, transparent: true });
-      const face = new THREE.Mesh(new THREE.PlaneGeometry(2.92, 1.46), logoMaterial);
+      const face = new THREE.Mesh(
+        new THREE.PlaneGeometry(2.92, 2.92 / (logoTexture.image.width / logoTexture.image.height)),
+        logoMaterial
+      );
       face.position.z = 0.106;
       installation.add(face);
 
@@ -345,6 +344,7 @@ function ThreeHeroScene({ reducedMotion }) {
       const ringThree = new THREE.Mesh(new THREE.TorusGeometry(2.1, 0.015, 12, 180), ringMaterial);
       ringThree.rotation.set(1.16, -0.62, -0.35);
       rings.add(ringThree);
+      rings.scale.setScalar(layout === 'mobile' ? 0.82 : 1);
       installation.add(rings);
 
       const platform = new THREE.Mesh(
@@ -352,6 +352,7 @@ function ThreeHeroScene({ reducedMotion }) {
         new THREE.MeshPhysicalMaterial({ color: 0x070707, metalness: 0.75, roughness: 0.32, clearcoat: 0.6 })
       );
       platform.position.y = -1.85;
+      platform.visible = layout !== 'mobile';
       installation.add(platform);
       const platformEdge = new THREE.Mesh(
         new THREE.TorusGeometry(1.91, 0.025, 10, 96),
@@ -359,53 +360,18 @@ function ThreeHeroScene({ reducedMotion }) {
       );
       platformEdge.rotation.x = Math.PI / 2;
       platformEdge.position.y = -1.77;
+      platformEdge.visible = layout !== 'mobile';
       installation.add(platformEdge);
 
-      const sphereMaterial = new THREE.MeshPhysicalMaterial({
-        color: 0x9b9b9b,
-        metalness: 1,
-        roughness: 0.12,
-        clearcoat: 1
-      });
-      const ornaments = new THREE.Group();
-      [
-        { x: -1.5, y: 1.35, z: 0.2, size: 0.28 },
-        { x: 2.1, y: 1.55, z: -0.6, size: 0.2 },
-        { x: -1.1, y: -1.2, z: 0.7, size: 0.16 },
-        { x: 2.25, y: -1.15, z: 0.4, size: 0.24 }
-      ].forEach(({ x, y, z, size }) => {
-        const sphere = new THREE.Mesh(new THREE.SphereGeometry(size, 32, 24), sphereMaterial);
-        sphere.position.set(x, y, z);
-        ornaments.add(sphere);
-      });
-      const cubeMaterial = new THREE.MeshPhysicalMaterial({
-        color: 0x292929,
-        metalness: 0.85,
-        roughness: 0.14,
-        transparent: true,
-        opacity: 0.68,
-        wireframe: true
-      });
-      const cube = new THREE.Mesh(new THREE.BoxGeometry(0.72, 0.72, 0.72), cubeMaterial);
-      cube.position.set(-1.6, -0.25, -0.8);
-      cube.rotation.set(0.55, 0.35, 0.4);
-      ornaments.add(cube);
-      const cubeTwo = cube.clone();
-      cubeTwo.position.set(2.35, 0.15, -1.1);
-      cubeTwo.scale.setScalar(0.62);
-      ornaments.add(cubeTwo);
-      ornaments.position.x = mobile ? 0 : 2;
-      ornaments.visible = !mobile;
-      scene.add(ornaments);
-
-      const floor = new THREE.Mesh(
+      floor = new THREE.Mesh(
         new THREE.PlaneGeometry(160, 160),
         new THREE.MeshStandardMaterial({ color: 0x080808, metalness: 0.8, roughness: 0.32 })
       );
       floor.rotation.x = -Math.PI / 2;
       floor.position.y = -2.12;
+      floor.visible = layout !== 'mobile';
       scene.add(floor);
-      const mirror = new Reflector(new THREE.PlaneGeometry(32, 32), {
+      mirror = new Reflector(new THREE.PlaneGeometry(32, 32), {
         clipBias: 0.003,
         textureWidth: Math.min(1024, Math.floor(width * pixelRatio)),
         textureHeight: Math.min(1024, Math.floor(height * pixelRatio)),
@@ -413,31 +379,58 @@ function ThreeHeroScene({ reducedMotion }) {
       });
       mirror.rotation.x = -Math.PI / 2;
       mirror.position.y = -2.1;
+      mirror.visible = layout !== 'mobile';
       scene.add(mirror);
 
       function resize() {
         const nextWidth = Math.max(mount.clientWidth, 1);
         const nextHeight = Math.max(mount.clientHeight, 1);
-        const mobile = nextWidth < 760;
+        const layout = getLayout(nextWidth);
+        currentLayout = layout;
         camera.aspect = nextWidth / nextHeight;
-        camera.position.set(0, mobile ? 1.1 : 0.15, mobile ? 12 : 11);
-        camera.lookAt(0, mobile ? 1.1 : 0, 0);
-        installation.position.set(mobile ? 0.15 : 2, mobile ? -0.75 : 0, 0);
-        ornaments.position.x = mobile ? 0 : 2;
-        ornaments.visible = !mobile;
+        camera.fov = layout === 'mobile' ? 40 : layout === 'tablet' ? 40 : 38;
+        camera.position.set(0, layout === 'mobile' ? 0.25 : 0.15, layout === 'mobile' ? 9.6 : layout === 'tablet' ? 11.5 : 11);
+        camera.lookAt(0, layout === 'mobile' ? 0.15 : 0, 0);
+        installation.position.set(layout === 'mobile' ? 0 : layout === 'tablet' ? 1.4 : 2, layout === 'mobile' ? 0.7 : 0, 0);
+        installation.scale.setScalar(layout === 'mobile' ? 1.3 : layout === 'tablet' ? 0.9 : 1);
+        rings.scale.setScalar(layout === 'mobile' ? 0.82 : 1);
+        mobileAccentLight.intensity = layout === 'mobile' ? 7 : 0;
+        platform.visible = layout !== 'mobile';
+        platformEdge.visible = layout !== 'mobile';
+        floor.visible = layout !== 'mobile';
+        mirror.visible = layout !== 'mobile';
         camera.updateProjectionMatrix();
+        renderer.setPixelRatio(layout === 'mobile'
+          ? Math.min(Math.max(window.devicePixelRatio || 1, 1.5), 2)
+          : Math.min(window.devicePixelRatio || 1, 1.5));
         renderer.setSize(nextWidth, nextHeight);
       }
       resizeHandler = resize;
       window.addEventListener('resize', resizeHandler);
 
+      const pointerAim = new THREE.Vector2();
+      let pointerCurrentX = 0;
+      let pointerCurrentY = 0;
+      pointerAimHandler = (event) => {
+        const bounds = renderer.domElement.getBoundingClientRect();
+        pointerAim.x = ((event.clientX - bounds.left) / bounds.width - 0.5) * 2;
+        pointerAim.y = ((event.clientY - bounds.top) / bounds.height - 0.5) * 2;
+      };
+      renderer.domElement.addEventListener('pointermove', pointerAimHandler);
       const render = () => {
         const time = reducedMotion ? 0 : performance.now() * 0.001;
+        const scrollProgress = scrollProgressRef?.current?.value || 0;
         installation.rotation.y = Math.sin(time * 0.28) * 0.06;
         installation.rotation.x = Math.sin(time * 0.22) * 0.025;
-        rings.rotation.y = time * 0.12;
-        rings.rotation.z = Math.sin(time * 0.16) * 0.08;
-        ornaments.rotation.y = Math.sin(time * 0.12) * 0.04;
+        pointerCurrentX += (pointerAim.x - pointerCurrentX) * 0.035;
+        pointerCurrentY += (pointerAim.y - pointerCurrentY) * 0.035;
+        camera.position.x = scrollProgress * 0.04 + pointerCurrentX * 0.04;
+        camera.lookAt(0, (currentLayout === 'mobile' ? 0.15 : 0) + scrollProgress * 0.025, 0);
+        keyLight.position.x = 2 + scrollProgress * 0.15 + pointerCurrentX * 0.12;
+        rimLight.position.y = 1 + pointerCurrentY * 0.08;
+        rings.rotation.y = (reducedMotion ? 0 : time * 0.12) + scrollProgress * 0.18 + pointerCurrentX * 0.025;
+        rings.rotation.z = reducedMotion ? 0 : Math.sin(time * 0.16) * 0.08;
+        rings.rotation.x = pointerCurrentY * 0.018;
         renderer.render(scene, camera);
         if (!reducedMotion) frameId = window.requestAnimationFrame(render);
       };
@@ -452,6 +445,7 @@ function ThreeHeroScene({ reducedMotion }) {
       disposed = true;
       window.cancelAnimationFrame(frameId);
       if (resizeHandler) window.removeEventListener('resize', resizeHandler);
+      if (renderer && pointerAimHandler) renderer.domElement.removeEventListener('pointermove', pointerAimHandler);
       if (renderer) {
         renderer.dispose();
         renderer.domElement.remove();
@@ -470,16 +464,27 @@ function ThreeHeroScene({ reducedMotion }) {
     };
   }, [reducedMotion]);
 
-  return <div className="hero-three-scene" ref={mountRef} aria-hidden="true" />;
+  return (
+    <div className="hero-three-scene" ref={mountRef} role="img" aria-label="L8R logo framed by rotating metallic rings" />
+  );
 }
-
-function CinematicHero({ onConsult }) {
+function CinematicHero({ onConsult, companies }) {
   const sectionRef = useRef(null);
   const introRef = useRef(null);
   const logoRef = useRef(null);
   const heroRef = useRef(null);
   const copyRef = useRef(null);
+  const scrollProgressRef = useRef({ value: 0 });
   const [reducedMotion] = useState(() => window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+  const [isMobile, setIsMobile] = useState(() => window.matchMedia('(max-width: 767px)').matches);
+
+  useEffect(() => {
+    const media = window.matchMedia('(max-width: 767px)');
+    const update = () => setIsMobile(media.matches);
+    media.addEventListener('change', update);
+    update();
+    return () => media.removeEventListener('change', update);
+  }, []);
 
   useEffect(() => {
     const section = sectionRef.current;
@@ -501,7 +506,10 @@ function CinematicHero({ onConsult }) {
           pin: true,
           scrub: 0.8,
           anticipatePin: 1,
-          invalidateOnRefresh: true
+          invalidateOnRefresh: true,
+          onUpdate: (self) => {
+            scrollProgressRef.current.value = self.progress;
+          }
         }
       })
         .to(logo, {
@@ -528,7 +536,6 @@ function CinematicHero({ onConsult }) {
       </div>
       <div className="cinematic-environment" ref={heroRef}>
         <div className="cinematic-atmosphere" aria-hidden="true" />
-        <ThreeHeroScene reducedMotion={reducedMotion} />
         <div className="cinematic-copy" ref={copyRef}>
           <p className="cinematic-eyebrow">STRATEGIZE <i>•</i> BUILD <i>•</i> GROW</p>
           <h1>YOUR GROWTH.<br /><em>OUR STRATEGY.</em></h1>
@@ -537,15 +544,68 @@ function CinematicHero({ onConsult }) {
             <a className="button button-light" href="#services">EXPLORE SERVICES <ArrowRight size={16} /></a>
             <a className="text-button" href="#work">VIEW PROJECTS <span><ArrowUpRight size={16} /></span></a>
           </div>
+          <div className="hero-inline-marquees">
+            <AutoScrollStrip
+              label="SERVICES"
+              items={offeredServices}
+              className="services-marquee"
+              renderItem={(service, index) => <><small>0{index + 1}</small><span>{service}</span><i aria-hidden="true">✳</i></>}
+            />
+            <AutoScrollStrip
+              label="COMPANIES WE'VE WORKED WITH"
+              items={companies || []}
+              direction="right"
+              className="companies-marquee"
+              emptyText="Verified client companies added in the CRM will appear here."
+              renderItem={(company) => {
+                const identity = company.logo_url
+                  ? <img src={company.logo_url} alt={company.name} loading="lazy" decoding="async" />
+                  : <span>{company.name}</span>;
+                return company.website_url
+                  ? <a href={company.website_url} target="_blank" rel="noreferrer">{identity}</a>
+                  : identity;
+              }}
+            />
+          </div>
         </div>
+        {!isMobile && <ThreeHeroScene reducedMotion={reducedMotion} scrollProgressRef={scrollProgressRef} />}
         <p className="hero-trust">TRUSTED BY FORWARD-THINKING BUSINESSES</p>
         <div className="cinematic-index"><span className="scroll-mark">↓</span><small>SCROLL TO EXPLORE</small><span className="index-line" /><small>01 / 04</small></div>
       </div>
     </section>
   );
 }
+const offeredServices = [
+  'Digital Marketing',
+  'Social Media Marketing',
+  'Web Development',
+  'Hosting and Maintenance',
+  'Business Growth'
+];
+
+function AutoScrollStrip({ label, items, direction = 'left', className = '', emptyText = '', renderItem }) {
+  if (!items.length) {
+    if (!emptyText) return null;
+    return <section className={`marquee-section ${className}`} aria-label={label}><p className="marquee-label">{label}</p><p className="marquee-empty">{emptyText}</p></section>;
+  }
+  const content = (copy) => items.map((item, index) => (
+    <span className="marquee-item" key={`${copy}-${item.id || item}-${index}`}>{renderItem(item, index)}</span>
+  ));
+  return (
+    <section className={`marquee-section ${className}`} aria-label={label}>
+      <p className="marquee-label">{label}</p>
+      <div className="marquee-window">
+        <div className={`marquee-track marquee-${direction}`}>
+          <div className="marquee-group">{content('primary')}</div>
+          <div className="marquee-group" aria-hidden="true" inert>{content('duplicate')}</div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function PublicSite({ onConsult }) {
-  const [site, setSite] = useState({ settings: {}, services: [], articles: [], testimonials: [], industries: [], caseStudies: [], projects: [] });
+  const [site, setSite] = useState({ settings: {}, services: [], articles: [], testimonials: [], industries: [], caseStudies: [], projects: [], companies: [] });
   const [legalPage, setLegalPage] = useState('');
   useEffect(() => {
     api('/public/site').then(setSite).catch((error) => console.error('Could not load published website content:', error.message));
@@ -556,7 +616,7 @@ function PublicSite({ onConsult }) {
     <>
       <Header onConsult={onConsult} />
       <main>
-        <CinematicHero onConsult={onConsult} />
+        <CinematicHero onConsult={onConsult} companies={site.companies} />
 
         <section className="intro section" id="about">
           <div className="section-label"><span>02</span><p>ABOUT L8R</p></div>
@@ -690,6 +750,7 @@ function CRM() {
     { title: 'Clients', icon: BriefcaseBusiness },
     { title: 'Appointments', icon: Clock3 },
     { title: 'Services', icon: Target },
+    { title: 'Companies', icon: BriefcaseBusiness },
     { title: 'Projects', icon: BriefcaseBusiness },
     { title: 'Case Studies', icon: BriefcaseBusiness },
     { title: 'Insights', icon: BarChart3 },
@@ -766,7 +827,7 @@ function CRM() {
     catch (logoutError) { setError(logoutError.message); }
   }
 
-  const resourceForView = { 'All Leads': 'leads', 'New Enquiries': 'leads', 'Follow-ups': 'leads', Clients: 'leads', Appointments: 'appointments', Services: 'services', Projects: 'projects', 'Case Studies': 'case_studies', Insights: 'articles', Testimonials: 'testimonials' }[view];
+  const resourceForView = { 'All Leads': 'leads', 'New Enquiries': 'leads', 'Follow-ups': 'leads', Clients: 'leads', Appointments: 'appointments', Services: 'services', Companies: 'companies', Projects: 'projects', 'Case Studies': 'case_studies', Insights: 'articles', Testimonials: 'testimonials' }[view];
   const fields = {
     leads: [
       ['full_name', 'Full name', 'text', true], ['email', 'Email', 'email', true], ['phone', 'Phone', 'text', true],
@@ -781,6 +842,10 @@ function CRM() {
       ['faqs','FAQs as JSON: [{"question":"...","answer":"..."}]','textarea'],['seo_title','SEO title (max 70 characters)','text'],
       ['meta_description','SEO description (max 170 characters)','textarea'],['focus_keyword','Focus keyword','text'],['canonical_url','Canonical URL (optional)','url'],
       ['published','Publish on website','checkbox'],['sort_order','Display order','number']
+    ],
+    companies: [
+      ['name','Company name','text',true],['logo_url','Logo URL (HTTPS)','url'],['website_url','Website URL (HTTPS)','url'],
+      ['sort_order','Display order','number'],['published','Show in client strip','checkbox']
     ],
     projects: [
       ['title','Project title','text',true],['slug','URL slug','text'],['category','Project category','text'],['client_name','Client name (optional)','text'],
@@ -800,6 +865,7 @@ function CRM() {
     leads: [['id','Lead ID'],['full_name','Contact'],['email','Email'],['service','Service'],['status','Status'],['follow_up_at','Follow-up']],
     appointments: [['title','Appointment'],['client_name','Contact'],['starts_at','Date'],['status','Status']],
     services: [['title','Service'],['description','Description'],['published','Published']],
+    companies: [['name','Company'],['website_url','Website'],['published','Published'],['sort_order','Order']],
     projects: [['title','Project'],['category','Category'],['publication_status','Publication'],['featured','Featured'],['updated_at','Updated']],
     articles: [['title','Article'],['category','Category'],['published','Published']],
     testimonials: [['client_name','Client'],['company','Company'],['quote','Testimonial'],['published','Published']],
@@ -817,6 +883,7 @@ function CRM() {
     if (resource === 'leads' && !record) initial.status = 'NEW ENQUIRY';
     if (resource === 'appointments' && !record) initial.status = 'SCHEDULED';
     if (resource === 'services' && !record) initial.sort_order = 0;
+    if (resource === 'companies' && !record) { initial.sort_order = 0; initial.published = false; }
     if (resource === 'projects' && !record) { initial.publication_status = 'DRAFT'; initial.featured = false; initial.gallery_json = '[]'; }
     setModal({ resource: formResource, record, initial });
   }
@@ -847,14 +914,14 @@ function CRM() {
       setModal(null);
       setNotice(resource === 'projects' && result.publication_status === 'PUBLISHED'
         ? `Project published: /projects/${result.slug}`
-        : modal.record ? 'Changes saved.' : `${resource === 'leads' ? `Lead created: ${result.id}` : 'Record created.'}`);
+        : modal.record ? 'Changes saved.' : `${resource === 'leads' ? `Lead created: ${result.id}` : resource === 'companies' ? 'Company added.' : 'Record created.'}`);
       await load(view);
     } catch (saveError) { setError(saveError.message); }
     finally { setBusy(false); }
   }
 
   async function removeRecord(resource, record) {
-    if (!window.confirm(`Delete "${record.title || record.full_name || record.client_name || record.id}"? This cannot be undone.`)) return;
+    if (!window.confirm(`Delete "${record.title || record.name || record.full_name || record.client_name || record.id}"? This cannot be undone.`)) return;
     try {
       await api(`/crm/${resource}/${encodeURIComponent(record.id)}`, { method: 'DELETE' });
       setNotice('Record deleted.');
@@ -947,7 +1014,7 @@ function CRM() {
   const canEdit = user.role !== 'STAFF' || resource === 'leads';
   const viewColumns = view === 'Team Management' ? columns.team : columns[resource];
   const items = view === 'Team Management' ? data : data;
-  const visibleNav = nav.filter((item) => user.role !== 'STAFF' || !['Team Management','Services','Projects','Case Studies','Insights','Testimonials','Website Content','Settings','SEO'].includes(item.title));
+  const visibleNav = nav.filter((item) => user.role !== 'STAFF' || !['Team Management','Services','Companies','Projects','Case Studies','Insights','Testimonials','Website Content','Settings','SEO'].includes(item.title));
 
   return (
     <div className="crm">
@@ -991,7 +1058,7 @@ function CRM() {
         </>}
 
         {view === 'Appointments' && <section className="leads-table">{renderTable(items, columns.appointments, { openForm, removeRecord, resource:'appointments', canEdit })}{!items.length && <div className="table-empty">No appointments yet. Add one to schedule a consultation.</div>}</section>}
-        {['Services','Projects','Case Studies','Insights','Testimonials'].includes(view) && <section className="leads-table">{renderTable(items, viewColumns, { openForm, removeRecord, resource, canEdit, changeProjectStatus })}{!items.length && <div className="table-empty">No {view.toLowerCase()} added yet. Create one when the content is approved.</div>}</section>}
+        {['Services','Companies','Projects','Case Studies','Insights','Testimonials'].includes(view) && <section className="leads-table">{renderTable(items, viewColumns, { openForm, removeRecord, resource, canEdit, changeProjectStatus })}{!items.length && <div className="table-empty">No {view.toLowerCase()} added yet. Create one when the content is approved.</div>}</section>}
         {view === 'SEO' && <section className="seo-dashboard">
           <div className="seo-links"><a href="/sitemap.xml" target="_blank" rel="noreferrer">Open XML sitemap <ArrowUpRight size={15} /></a><a href="/robots.txt" target="_blank" rel="noreferrer">Open robots.txt <ArrowUpRight size={15} /></a><a href="https://search.google.com/test/rich-results" target="_blank" rel="noreferrer">Rich Results Test <ArrowUpRight size={15} /></a></div>
           <h2>Published page checks</h2><p className="crm-muted">Editorial checks only; metadata completeness does not mean Google has indexed or approved a page.</p>
@@ -1008,7 +1075,7 @@ function CRM() {
 
         {view === 'Website Content' && <section className="content-tools">
           <p>Manage the public-site content from dedicated editors. New content remains unpublished until you choose to publish it.</p>
-            {['Services','Projects','Case Studies','Insights','Testimonials','SEO'].map((section) => <button key={section} onClick={() => setView(section)}>{section}<ArrowRight size={16} /></button>)}
+            {['Services','Companies','Projects','Case Studies','Insights','Testimonials','SEO'].map((section) => <button key={section} onClick={() => setView(section)}>{section}<ArrowRight size={16} /></button>)}
           <button onClick={() => setView('Settings')}>Homepage, contact and policy content<ArrowRight size={16} /></button>
         </section>}
 
